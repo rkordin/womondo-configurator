@@ -1183,7 +1183,160 @@
 
     return data;
   }
+// =============================
+// ✅ WRITE SUMMARY + PAYLOAD_JSON TO FORM (same moment)
+// =============================
 
+// IMPORTANT: this must match the *Webflow field NAME* of your textarea
+// From your Pipedream dump it looks like it is exactly: "textarea field"
+const SUMMARY_TEXTAREA_NAME = 'textarea field';
+
+function formatDateDE(d = new Date()) {
+  return d.toLocaleDateString('de-DE');
+}
+
+function getCountryLabelFromUI() {
+  return (document.querySelector('.country-selector-dropdown .w-dropdown-toggle .text-block')?.textContent || '').trim();
+}
+
+function buildSummaryText() {
+  const lines = [];
+  lines.push('=== WOMONDO CONFIGURATION ===');
+  lines.push(`Date: ${formatDateDE()}`);
+
+  const countryLabel = getCountryLabelFromUI();
+  if (countryLabel) lines.push(`Country: ${countryLabel}`);
+
+  lines.push('─────────────────────────────');
+  lines.push(`MODEL: ${selectedModel || `Womondo ${getSelectedModelNumberOrFallback()}`}`);
+  lines.push('SELECTED EQUIPMENT:');
+  lines.push('─────────────────────────────');
+
+  // Selected items (excluding row 0 model)
+  Object.entries(selectedItems)
+    .filter(([_, item]) => item.row !== 0)
+    .sort((a, b) => a[1].row - b[1].row)
+    .forEach(([key, item]) => {
+      let gross = item.priceGross || 0;
+      let title = item.title || 'Item';
+
+      if (selectedSubOptions[key]?.title) {
+        title += ` + ${selectedSubOptions[key].title}`;
+        gross += selectedSubOptions[key].priceGross || 0;
+      }
+
+      lines.push(`• ${title}: ${formatEuro(gross)}`);
+    });
+
+  // Fees
+  if (autoFees && Object.keys(autoFees).length) {
+    Object.values(autoFees).forEach(fee => {
+      lines.push(`• ${fee.name}: ${formatEuro(fee.priceGross || 0)}`);
+    });
+  }
+
+  // Extras
+  if (window.selectedExtras && Object.keys(window.selectedExtras).length) {
+    lines.push('SPECIAL EXTRAS:');
+    lines.push('─────────────────────────────');
+    Object.values(window.selectedExtras).forEach(ex => {
+      lines.push(`• ${ex.name}: ${formatEuro(ex.priceGross || 0)}`);
+    });
+  }
+
+  lines.push('─────────────────────────────');
+  const total = calculateTotal();
+  lines.push(`TOTAL (incl. VAT): ${formatEuro(total)}`);
+  lines.push('=============================');
+
+  return lines.join('\n');
+}
+
+function getFieldByNameOrId(form, name) {
+  return form.querySelector(`[name="${CSS.escape(name)}"]`) || form.querySelector(`#${CSS.escape(name)}`);
+}
+
+function setFieldValue(form, name, value) {
+  let el = getFieldByNameOrId(form, name);
+
+  // If it doesn't exist, create hidden input (works for payload_json/country_col/total_gross)
+  if (!el) {
+    el = document.createElement('input');
+    el.type = 'hidden';
+    el.name = name;
+    el.id = name;
+    form.appendChild(el);
+  }
+
+  el.required = false;
+  el.removeAttribute('required');
+  el.value = value == null ? '' : String(value);
+}
+
+// This writes BOTH:
+// 1) textarea summary
+// 2) hidden field payload_json
+// in the SAME function call
+function writeSummaryAndPayloadToForm(form) {
+  try {
+    syncAutoTransportFee();
+    updateSelectedEquipment();
+    const total = calculateTotal();
+
+    const payload = buildPayload();
+    const summary = buildSummaryText();
+
+    // ✅ write into textarea (must match real field NAME)
+    const summaryTextarea = getFieldByNameOrId(form, SUMMARY_TEXTAREA_NAME);
+    if (summaryTextarea && summaryTextarea.tagName.toLowerCase() === 'textarea') {
+      summaryTextarea.value = summary;
+    } else {
+      // fallback: write into first textarea if the name changed
+      const anyTextarea = form.querySelector('textarea');
+      if (anyTextarea) anyTextarea.value = summary;
+    }
+
+    // ✅ write hidden fields (these will be submitted)
+    setFieldValue(form, 'payload_json', JSON.stringify(payload));
+    setFieldValue(form, 'country_col', payload?.meta?.countryCol || currentCountryColKey || '');
+    setFieldValue(form, 'total_gross', payload?.totals?.totalGross ?? total ?? '');
+
+    log('Summary + payload_json written ✅');
+  } catch (e) {
+    console.warn('[WOMONDO] writeSummaryAndPayloadToForm failed', e);
+  }
+}
+
+// Bind early events so Webflow captures the values
+function bindFormPayload() {
+  const wrapper = document.querySelector('.conf-email-form');
+  if (!wrapper) { log('No .conf-email-form found'); return; }
+
+  const form = wrapper.tagName?.toLowerCase() === 'form' ? wrapper : wrapper.querySelector('form');
+  if (!form) { log('No <form> inside .conf-email-form'); return; }
+
+  if (form.getAttribute('data-womondo-payload-bound') === '1') return;
+  form.setAttribute('data-womondo-payload-bound', '1');
+
+  const submitBtn =
+    form.querySelector('[type="submit"]') ||
+    form.querySelector('input.w-button') ||
+    form.querySelector('button.w-button') ||
+    form.querySelector('.w-button');
+
+  const fire = () => writeSummaryAndPayloadToForm(form);
+
+  if (submitBtn) {
+    submitBtn.addEventListener('pointerdown', fire, true);
+    submitBtn.addEventListener('mousedown', fire, true);
+    submitBtn.addEventListener('touchstart', fire, true);
+    submitBtn.addEventListener('click', fire, true);
+  }
+
+  form.addEventListener('submit', fire, true);
+
+  log('bindFormPayload ✅');
+}
 function bindFormWebhook() {
   const wrapper = document.querySelector('.conf-email-form');
   if (!wrapper) { log('No .conf-email-form found'); return; }
