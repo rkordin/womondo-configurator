@@ -1211,7 +1211,41 @@ function bindFormWebhook() {
     el.removeAttribute('required');
     el.value = value == null ? '' : String(value);
   }
+function writePayloadIntoForm() {
+  try {
+    syncAutoTransportFee();
+    updateSelectedEquipment();
+    const total = calculateTotal();
 
+    const payload = buildPayload();
+
+    setHiddenField('payload_json', JSON.stringify(payload));
+    setHiddenField('country_col', payload?.meta?.countryCol || currentCountryColKey || '');
+    setHiddenField('total_gross', payload?.totals?.totalGross ?? total ?? '');
+
+    log('payload_json prepared ✅');
+  } catch (e) {
+    console.warn('[WOMONDO] Failed to build/write payload_json', e);
+  }
+}
+
+// 1) EARLY: before Webflow collects fields
+const submitBtn =
+  form.querySelector('[type="submit"]') ||
+  form.querySelector('input.w-button') ||
+  form.querySelector('button.w-button') ||
+  form.querySelector('.w-button');
+
+if (submitBtn) {
+  // fire even earlier than click
+  submitBtn.addEventListener('pointerdown', writePayloadIntoForm, true);
+  submitBtn.addEventListener('mousedown', writePayloadIntoForm, true);
+  submitBtn.addEventListener('touchstart', writePayloadIntoForm, true);
+  submitBtn.addEventListener('click', writePayloadIntoForm, true);
+}
+
+// 2) Still keep submit as a backup
+form.addEventListener('submit', writePayloadIntoForm, true);
   form.addEventListener('submit', () => {
     try {
       syncAutoTransportFee();
