@@ -1184,39 +1184,54 @@
     return data;
   }
 
-  function bindFormWebhook() {
-    // .conf-email-form might be the form OR wrapper
-    const wrapper = document.querySelector('.conf-email-form');
-    if (!wrapper) { log('No .conf-email-form found'); return; }
+function bindFormWebhook() {
+  const wrapper = document.querySelector('.conf-email-form');
+  if (!wrapper) { log('No .conf-email-form found'); return; }
 
-    const form = wrapper.tagName?.toLowerCase() === 'form' ? wrapper : wrapper.querySelector('form');
-    if (!form) { log('No <form> inside .conf-email-form'); return; }
+  const form = wrapper.tagName?.toLowerCase() === 'form' ? wrapper : wrapper.querySelector('form');
+  if (!form) { log('No <form> inside .conf-email-form'); return; }
 
-    // avoid double binding
-    if (form.getAttribute('data-womondo-webhook-bound') === '1') return;
-    form.setAttribute('data-womondo-webhook-bound', '1');
+  if (form.getAttribute('data-womondo-webhook-bound') === '1') return;
+  form.setAttribute('data-womondo-webhook-bound', '1');
 
-    form.addEventListener('submit', async () => {
-      try {
-        // ensure latest totals + fees are synced
-        syncAutoTransportFee();
-        updateSelectedEquipment();
-        calculateTotal();
-
-        const payload = buildPayload();
-        payload.form = readFormFields(form);
-
-        // send to webhook (async, do not block Webflow submit)
-        postWebhook(payload);
-
-        log('Payload queued ✅', payload);
-      } catch (e) {
-        console.warn('[WOMONDO] build/send failed:', e);
-      }
-    }, true);
-
-    log('Form webhook bound ✅');
+  function getField(name) {
+    return form.querySelector(`[name="${name}"]`) || form.querySelector(`#${CSS.escape(name)}`);
   }
+
+  function setHiddenField(name, value) {
+    let el = getField(name);
+    if (!el) {
+      el = document.createElement('input');
+      el.type = 'hidden';
+      el.name = name;
+      el.id = name;
+      form.appendChild(el);
+    }
+    el.required = false;
+    el.removeAttribute('required');
+    el.value = value == null ? '' : String(value);
+  }
+
+  form.addEventListener('submit', () => {
+    try {
+      syncAutoTransportFee();
+      updateSelectedEquipment();
+      const total = calculateTotal();
+
+      const payload = buildPayload();
+
+      setHiddenField('payload_json', JSON.stringify(payload));
+      setHiddenField('country_col', payload?.meta?.countryCol || currentCountryColKey || '');
+      setHiddenField('total_gross', payload?.totals?.totalGross ?? total ?? '');
+
+      log('payload_json written into form ✅');
+    } catch (e) {
+      console.warn('[WOMONDO] Failed to write payload_json', e);
+    }
+  }, true);
+
+  log('Form payload binding ✅');
+}
 
   // -----------------------------
   // INIT
@@ -1298,5 +1313,8 @@
   // Run
   document.addEventListener('DOMContentLoaded', () => {
     initialize().catch(err => console.error('[WOMONDO] init failed:', err));
+
+    // =========================
+
   });
 })();
