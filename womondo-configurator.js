@@ -1294,20 +1294,49 @@ function writeSummaryAndPayloadToForm(form) {
     if (summaryTextarea && summaryTextarea.tagName.toLowerCase() === 'textarea') {
       summaryTextarea.value = summary;
     } else {
-      // fallback: write into first textarea if the name changed
       const anyTextarea = form.querySelector('textarea');
       if (anyTextarea) anyTextarea.value = summary;
     }
 
     // ✅ write hidden fields (these will be submitted)
-setFieldValue(form, 'payload_json', JSON.stringify(payload));
-setFieldValue(form, 'country_col', currentCountryColKey || '');
-setFieldValue(form, 'total_gross', payload?.total_gross ?? total ?? '');
+    setFieldValue(form, 'payload_json', JSON.stringify(payload));
+    setFieldValue(form, 'country_col', currentCountryColKey || '');
+    setFieldValue(form, 'total_gross', payload?.total_gross ?? total ?? '');
 
     log('Summary + payload_json written ✅');
   } catch (e) {
     console.warn('[WOMONDO] writeSummaryAndPayloadToForm failed', e);
   }
+}
+function normalizePayload(raw, form) {
+  if (raw && Array.isArray(raw.mo_codes)) {
+    if (!raw.note) raw.note = (form?.querySelector(`[name="${CSS.escape(SUMMARY_TEXTAREA_NAME)}"]`)?.value || '').trim();
+    if (raw.total_gross == null) raw.total_gross = null;
+    return raw;
+  }
+
+  const baseCode = raw?.base?.moCode || raw?.base?.mo_code || raw?.base?.MO_CODE || null;
+
+  const itemCodes = Array.isArray(raw?.items)
+    ? raw.items.map(x => x?.code).filter(Boolean)
+    : [];
+
+  const rawCodes = [baseCode, ...itemCodes]
+    .filter(Boolean)
+    .map(c => String(c).trim().toUpperCase());
+
+  const seen = new Set();
+  const mo_codes = rawCodes.filter(c => (seen.has(c) ? false : (seen.add(c), true)));
+
+const note = (form?.querySelector(`[name="${CSS.escape(SUMMARY_TEXTAREA_NAME)}"]`)?.value || '').trim();
+  
+  const total_gross =
+    raw?.totals?.totalGross ??
+    raw?.totals?.total_gross ??
+    raw?.totals?.grossTotal ??
+    null;
+
+  return { mo_codes, note, total_gross };
 }
 
 // Bind early events so Webflow captures the values
@@ -1337,6 +1366,7 @@ function bindFormJsonOnlyWebhookAndFields() {
   }
 
   const payloadField = ensureHidden('payload_json');
+  ensureHidden('payload_full');
   ensureHidden('country_col');
   ensureHidden('total_gross');
 
@@ -1344,26 +1374,33 @@ function bindFormJsonOnlyWebhookAndFields() {
 
   function fire() {
     try {
-      // write summary textarea + payload_json + country_col + total_gross
       writeSummaryAndPayloadToForm(form);
 
-      // send ONLY JSON to webhook (do NOT stop form submit)
       if (!_sent) {
         _sent = true;
-        const payload = JSON.parse(payloadField.value || '{}');
+
+        const raw = JSON.parse(payloadField.value || '{}');
+        setFieldValue(form, 'payload_full', JSON.stringify(raw));
+
+        const payload = normalizePayload(raw, form);
+
+        // ✅ overwrite payload_json so Webflow submit gets normalized shape
+        payloadField.value = JSON.stringify(payload);
+
+        setFieldValue(form, 'total_gross', payload?.total_gross ?? '');
+        setFieldValue(form, 'country_col', currentCountryColKey || '');
+
         postWebhook(payload).catch(err => console.warn('[WOMONDO] webhook send failed', err));
+
         setTimeout(() => { _sent = false; }, 2500);
       }
 
-      console.log('[WOMONDO] fire() ok, payload_json length:',
-        (payloadField.value || '').length
-      );
+      console.log('[WOMONDO] fire() ok, payload_json length:', (payloadField.value || '').length);
     } catch (e) {
       console.warn('[WOMONDO] fire() failed', e);
     }
   }
 
-  // 🔥 Critical: capture pointerdown/click even if submit is blocked by validation
   function isSubmitishTarget(t) {
     return !!t.closest('.conf-email-form [type="submit"], .conf-email-form .w-button');
   }
@@ -1376,12 +1413,10 @@ function bindFormJsonOnlyWebhookAndFields() {
     if (isSubmitishTarget(e.target)) fire();
   }, true);
 
-  // backup: in case submit does fire
   form.addEventListener('submit', fire, true);
 
   console.log('[WOMONDO] bindFormJsonOnlyWebhookAndFields ✅');
 }
-
   // -----------------------------
   // INIT
   // -----------------------------
