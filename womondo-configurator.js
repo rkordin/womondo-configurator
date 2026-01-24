@@ -1087,49 +1087,52 @@
     return items;
   }
 
-  function buildPayload() {
-    const modelNum = getSelectedModelNumberOrFallback();
-    const brandKey = detectBrandKeyFromUI();
-    const { trans, engine } = detectTransEngineFromUI();
+function buildPayload() {
+  // ✅ We keep the function name buildPayload()
+  // so you DON'T need to change any other code.
+  // It will now return ONLY MO codes + a human note.
 
-    const baseMoCode = getBaseMoCode(modelNum, brandKey, trans, engine);
-    const items = collectSelectedItemsCodes();
+  const modelNum = getSelectedModelNumberOrFallback();
+  const brandKey = detectBrandKeyFromUI();
+  const { trans, engine } = detectTransEngineFromUI();
 
-    // remap chassis in Step 3
-    items.forEach(it => { if (it.step === 3) it.code = remapChassisCode(it.code, brandKey, modelNum); });
+  const baseMoCode = getBaseMoCode(modelNum, brandKey, trans, engine);
 
-    // add color as code (Step 5)
-    const colorName = getSelectedColorNameFromUI();
-    if (colorName) {
-      const colorCode = remapColorCodeByBrand(brandKey, colorName);
-      if (colorCode) items.push({ step: 5, title: `Colour: ${colorName}`, code: colorCode, qty: 1 });
-    }
+  // machine list (codes)
+  const items = collectSelectedItemsCodes();
 
-    const totalGross = calculateTotal();
-    const totalLabel = document.querySelector('.total-price .conf-price')?.textContent?.trim() || formatEuro(totalGross);
+  // remap chassis in Step 3
+  items.forEach(it => { if (it.step === 3) it.code = remapChassisCode(it.code, brandKey, modelNum); });
 
-    return {
-      meta: {
-        source: 'webflow_womondo',
-        createdAt: new Date().toISOString(),
-        countryCol: currentCountryColKey,
-        country: currentCountry,
-        currency: 'EUR'
-      },
-      base: {
-        model: modelNum,
-        brand: brandKey,
-        trans,
-        engine,
-        moCode: baseMoCode
-      },
-      items,
-      totals: {
-        totalGross: Number.isFinite(totalGross) ? totalGross : null,
-        totalLabel: totalLabel || null
-      }
-    };
+  // add color as code (Step 5)
+  const colorName = getSelectedColorNameFromUI();
+  if (colorName) {
+    const colorCode = remapColorCodeByBrand(brandKey, colorName);
+    if (colorCode) items.push({ step: 5, title: `Colour: ${colorName}`, code: colorCode, qty: 1 });
   }
+
+  // ✅ MO_CODES array (deduped)
+  const rawCodes = [
+    baseMoCode,
+    ...items.map(i => i.code)
+  ]
+    .filter(Boolean)
+    .map(c => String(c).trim().toUpperCase());
+
+  const seen = new Set();
+  const mo_codes = rawCodes.filter(c => (seen.has(c) ? false : (seen.add(c), true)));
+
+  // ✅ NOTE text (human-readable names + prices)
+  const note = buildSummaryText();
+
+  const total_gross = calculateTotal();
+
+  return {
+    mo_codes,      // <-- ONLY codes go here
+    note,          // <-- “comment” for humans (names + prices)
+    total_gross    // <-- numeric total (optional, but useful)
+  };
+}
 
   // -----------------------------
   // WEBHOOK SEND (no local download)
@@ -1297,9 +1300,9 @@ function writeSummaryAndPayloadToForm(form) {
     }
 
     // ✅ write hidden fields (these will be submitted)
-    setFieldValue(form, 'payload_json', JSON.stringify(payload));
-    setFieldValue(form, 'country_col', payload?.meta?.countryCol || currentCountryColKey || '');
-    setFieldValue(form, 'total_gross', payload?.totals?.totalGross ?? total ?? '');
+setFieldValue(form, 'payload_json', JSON.stringify(payload));
+setFieldValue(form, 'country_col', currentCountryColKey || '');
+setFieldValue(form, 'total_gross', payload?.total_gross ?? total ?? '');
 
     log('Summary + payload_json written ✅');
   } catch (e) {
