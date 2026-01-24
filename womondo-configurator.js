@@ -1316,8 +1316,12 @@ function bindFormPayload() {
     form.querySelector('button.w-button') ||
     form.querySelector('.w-button');
 
-  const fire = () => writeSummaryAndPayloadToForm(form);
-
+const fire = () => {
+  console.log('[WOMONDO] FIRE -> writing payload now');
+  writeSummaryAndPayloadToForm(form);
+  console.log('[WOMONDO] payload_json length:', (form.querySelector('[name="payload_json"]')?.value || '').length);
+};
+  
   if (submitBtn) {
     submitBtn.addEventListener('pointerdown', fire, true);
     submitBtn.addEventListener('mousedown', fire, true);
