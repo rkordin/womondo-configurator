@@ -1189,8 +1189,8 @@
 
 // IMPORTANT: this must match the *Webflow field NAME* of your textarea
 // From your Pipedream dump it looks like it is exactly: "textarea field"
-const SUMMARY_TEXTAREA_NAME = 'textarea field';
-
+const SUMMARY_TEXTAREA_NAME = 'textarea-field';
+  
 function formatDateDE(d = new Date()) {
   return d.toLocaleDateString('de-DE');
 }
