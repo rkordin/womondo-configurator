@@ -1300,55 +1300,19 @@ function writeSummaryAndPayloadToForm(form) {
 }
 
 // Bind early events so Webflow captures the values
-function bindFormPayload() {
+function bindFormJsonOnlyWebhookAndFields() {
   const wrapper = document.querySelector('.conf-email-form');
-  if (!wrapper) { log('No .conf-email-form found'); return; }
+  if (!wrapper) { console.warn('[WOMONDO] No .conf-email-form found'); return; }
 
   const form = wrapper.tagName?.toLowerCase() === 'form' ? wrapper : wrapper.querySelector('form');
-  if (!form) { log('No <form> inside .conf-email-form'); return; }
+  if (!form) { console.warn('[WOMONDO] No <form> inside .conf-email-form'); return; }
 
-  if (form.getAttribute('data-womondo-payload-bound') === '1') return;
-  form.setAttribute('data-womondo-payload-bound', '1');
+  if (form.getAttribute('data-womondo-bound') === '1') return;
+  form.setAttribute('data-womondo-bound', '1');
 
-  const submitBtn =
-    form.querySelector('[type="submit"]') ||
-    form.querySelector('input.w-button') ||
-    form.querySelector('button.w-button') ||
-    form.querySelector('.w-button');
-
-const fire = () => {
-  console.log('[WOMONDO] FIRE -> writing payload now');
-  writeSummaryAndPayloadToForm(form);
-  console.log('[WOMONDO] payload_json length:', (form.querySelector('[name="payload_json"]')?.value || '').length);
-};
-  
-  if (submitBtn) {
-    submitBtn.addEventListener('pointerdown', fire, true);
-    submitBtn.addEventListener('mousedown', fire, true);
-    submitBtn.addEventListener('touchstart', fire, true);
-    submitBtn.addEventListener('click', fire, true);
-  }
-
-  form.addEventListener('submit', fire, true);
-
-  log('bindFormPayload ✅');
-}
-function bindFormWebhook() {
-  const wrapper = document.querySelector('.conf-email-form');
-  if (!wrapper) { log('No .conf-email-form found'); return; }
-
-  const form = wrapper.tagName?.toLowerCase() === 'form' ? wrapper : wrapper.querySelector('form');
-  if (!form) { log('No <form> inside .conf-email-form'); return; }
-
-  if (form.getAttribute('data-womondo-webhook-bound') === '1') return;
-  form.setAttribute('data-womondo-webhook-bound', '1');
-
-  function getField(name) {
-    return form.querySelector(`[name="${name}"]`) || form.querySelector(`#${CSS.escape(name)}`);
-  }
-
-  function setHiddenField(name, value) {
-    let el = getField(name);
+  // ensure hidden fields exist INSIDE this form
+  function ensureHidden(name) {
+    let el = form.querySelector(`[name="${CSS.escape(name)}"]`);
     if (!el) {
       el = document.createElement('input');
       el.type = 'hidden';
@@ -1358,73 +1322,49 @@ function bindFormWebhook() {
     }
     el.required = false;
     el.removeAttribute('required');
-    el.value = value == null ? '' : String(value);
+    return el;
   }
-let _webhookSentForThisSubmit = false;
 
-function writePayloadIntoForm() {
-  try {
-    syncAutoTransportFee();
-    updateSelectedEquipment();
-    const total = calculateTotal();
+  const payloadField = ensureHidden('payload_json');
+  ensureHidden('country_col');
+  ensureHidden('total_gross');
 
-    const payload = buildPayload();
+  let _sent = false;
 
-    // keep Webflow/HubSpot behavior (hidden fields are part of the form submit)
-    setHiddenField('payload_json', JSON.stringify(payload));
-    setHiddenField('country_col', payload?.meta?.countryCol || currentCountryColKey || '');
-    setHiddenField('total_gross', payload?.totals?.totalGross ?? total ?? '');
-
-    // ✅ send ONLY JSON to your webhook (does NOT stop the form submit)
-    if (!_webhookSentForThisSubmit) {
-      _webhookSentForThisSubmit = true;
-      postWebhook(payload).catch(err => console.warn('[WOMONDO] webhook send failed', err));
-      // reset shortly so the next submission can send again
-      setTimeout(() => { _webhookSentForThisSubmit = false; }, 3000);
-    }
-
-    log('payload_json prepared + webhook fired ✅');
-  } catch (e) {
-    console.warn('[WOMONDO] Failed to build/write payload_json', e);
-  }
-}
-
-// 1) EARLY: before Webflow collects fields
-const submitBtn =
-  form.querySelector('[type="submit"]') ||
-  form.querySelector('input.w-button') ||
-  form.querySelector('button.w-button') ||
-  form.querySelector('.w-button');
-
-if (submitBtn) {
-  // fire even earlier than click
-  submitBtn.addEventListener('pointerdown', writePayloadIntoForm, true);
-  submitBtn.addEventListener('mousedown', writePayloadIntoForm, true);
-  submitBtn.addEventListener('touchstart', writePayloadIntoForm, true);
-  submitBtn.addEventListener('click', writePayloadIntoForm, true);
-}
-
-// 2) Still keep submit as a backup
-form.addEventListener('submit', writePayloadIntoForm, true);
-  form.addEventListener('submit', () => {
+  function fire() {
     try {
-      syncAutoTransportFee();
-      updateSelectedEquipment();
-      const total = calculateTotal();
+      // write summary textarea + payload_json + country_col + total_gross
+      writeSummaryAndPayloadToForm(form);
 
-      const payload = buildPayload();
+      // send ONLY JSON to webhook (do NOT stop form submit)
+      if (!_sent) {
+        _sent = true;
+        const payload = JSON.parse(payloadField.value || '{}');
+        postWebhook(payload).catch(err => console.warn('[WOMONDO] webhook send failed', err));
+        setTimeout(() => { _sent = false; }, 2500);
+      }
 
-      setHiddenField('payload_json', JSON.stringify(payload));
-      setHiddenField('country_col', payload?.meta?.countryCol || currentCountryColKey || '');
-      setHiddenField('total_gross', payload?.totals?.totalGross ?? total ?? '');
-
-      log('payload_json written into form ✅');
+      console.log('[WOMONDO] fire() ok, payload_json length:',
+        (payloadField.value || '').length
+      );
     } catch (e) {
-      console.warn('[WOMONDO] Failed to write payload_json', e);
+      console.warn('[WOMONDO] fire() failed', e);
     }
+  }
+
+  // 🔥 Critical: capture pointerdown/click even if submit is blocked by validation
+  document.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.conf-email-form')) fire();
   }, true);
 
-  log('Form payload binding ✅');
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.conf-email-form')) fire();
+  }, true);
+
+  // backup: in case submit does fire
+  form.addEventListener('submit', fire, true);
+
+  console.log('[WOMONDO] bindFormJsonOnlyWebhookAndFields ✅');
 }
 
   // -----------------------------
