@@ -980,13 +980,13 @@
   const CHASSIS_REMAP = {
     FIAT:    { DRIVE: 'CH0775',  TECH: 'CH0774',  STYLE_L3L4: 'CH0776',  STYLE_L2: 'CH0777' },
     CITROEN: { DRIVE: 'CH0778',  TECH: 'CH0779',  STYLE_L3L4: 'CH0780',  STYLE_L2: 'CH0781' },
-    OPEL:    { DRIVE: 'CH0782',  TECH: 'CH07823', STYLE_L3L4: 'CH0784',  STYLE_L2: 'CH0785' }
+    OPEL:    { DRIVE: 'CH0782',  TECH: 'CH0783', STYLE_L3L4: 'CH0784',  STYLE_L2: 'CH0785' }
   };
 
   function chassisTypeFromCode(code) {
     const c = (code || '').toUpperCase();
     if (['CH0775','CH0778','CH0782'].includes(c)) return 'DRIVE';
-    if (['CH0774','CH0779','CH07823'].includes(c)) return 'TECH';
+    if (['CH0774','CH0779','CH0783'].includes(c)) return 'TECH';
     if (['CH0776','CH0777','CH0780','CH0781','CH0784','CH0785'].includes(c)) return 'STYLE';
     return null;
   }
@@ -1257,11 +1257,19 @@ function getFieldByNameOrId(form, name) {
 }
 
 function setFieldValue(form, name, value) {
-  const el = getFieldByNameOrId(form, name);
+  let el = getFieldByNameOrId(form, name);
+
+  // ✅ auto-create hidden inputs if missing
   if (!el) {
-    console.warn('[WOMONDO] Missing field in Webflow form:', name);
-    return;
+    el = document.createElement('input');
+    el.type = 'hidden';
+    el.name = name;
+    el.id = name;
+    form.appendChild(el);
   }
+
+  el.required = false;
+  el.removeAttribute('required');
   el.value = value == null ? '' : String(value);
 }
 
@@ -1353,12 +1361,16 @@ function bindFormJsonOnlyWebhookAndFields() {
   }
 
   // 🔥 Critical: capture pointerdown/click even if submit is blocked by validation
+  function isSubmitishTarget(t) {
+    return !!t.closest('.conf-email-form [type="submit"], .conf-email-form .w-button');
+  }
+
   document.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.conf-email-form')) fire();
+    if (isSubmitishTarget(e.target)) fire();
   }, true);
 
   document.addEventListener('click', (e) => {
-    if (e.target.closest('.conf-email-form')) fire();
+    if (isSubmitishTarget(e.target)) fire();
   }, true);
 
   // backup: in case submit does fire
