@@ -1360,6 +1360,8 @@ function bindFormWebhook() {
     el.removeAttribute('required');
     el.value = value == null ? '' : String(value);
   }
+let _webhookSentForThisSubmit = false;
+
 function writePayloadIntoForm() {
   try {
     syncAutoTransportFee();
@@ -1368,11 +1370,20 @@ function writePayloadIntoForm() {
 
     const payload = buildPayload();
 
+    // keep Webflow/HubSpot behavior (hidden fields are part of the form submit)
     setHiddenField('payload_json', JSON.stringify(payload));
     setHiddenField('country_col', payload?.meta?.countryCol || currentCountryColKey || '');
     setHiddenField('total_gross', payload?.totals?.totalGross ?? total ?? '');
 
-    log('payload_json prepared ✅');
+    // ✅ send ONLY JSON to your webhook (does NOT stop the form submit)
+    if (!_webhookSentForThisSubmit) {
+      _webhookSentForThisSubmit = true;
+      postWebhook(payload).catch(err => console.warn('[WOMONDO] webhook send failed', err));
+      // reset shortly so the next submission can send again
+      setTimeout(() => { _webhookSentForThisSubmit = false; }, 3000);
+    }
+
+    log('payload_json prepared + webhook fired ✅');
   } catch (e) {
     console.warn('[WOMONDO] Failed to build/write payload_json', e);
   }
