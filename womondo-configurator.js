@@ -1257,19 +1257,11 @@ function getFieldByNameOrId(form, name) {
 }
 
 function setFieldValue(form, name, value) {
-  let el = getFieldByNameOrId(form, name);
-
-  // If it doesn't exist, create hidden input (works for payload_json/country_col/total_gross)
+  const el = getFieldByNameOrId(form, name);
   if (!el) {
-    el = document.createElement('input');
-    el.type = 'hidden';
-    el.name = name;
-    el.id = name;
-    form.appendChild(el);
+    console.warn('[WOMONDO] Missing field in Webflow form:', name);
+    return;
   }
-
-  el.required = false;
-  el.removeAttribute('required');
   el.value = value == null ? '' : String(value);
 }
 
