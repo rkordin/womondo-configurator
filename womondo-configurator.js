@@ -1491,8 +1491,8 @@ form.addEventListener('submit', writePayloadIntoForm, true);
     initializeExtras();
 
     // ✅ webhook binding to SEND button (form submit)
-    bindFormWebhook();
-
+bindFormJsonOnlyWebhookAndFields();
+    
     // final sync
     syncAutoTransportFee();
     updateSelectedEquipment();
