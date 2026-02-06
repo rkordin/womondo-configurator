@@ -476,66 +476,38 @@
     applyPricesForCountry(countryUpper, forcedCol || null);
   }
 
-  // -----------------------------
-  // AUTO TRANSPORT FEE
-  // -----------------------------
-  function getCodeMapForCurrentCountry() {
-    const colObj = sheet.byCol.get(currentCountryColKey);
-    return colObj?.map || null;
+// -----------------------------
+// AUTO TRANSPORT FEE (PRIMARY ONLY)
+// -----------------------------
+function getCodeMapForCurrentCountry() {
+  const colObj = sheet.byCol.get(currentCountryColKey);
+  return colObj?.map || null;
+}
+
+function getAutoFeeGross(primaryCode) {
+  const map = getCodeMapForCurrentCountry();
+  if (!map) return 0;
+
+  const g = map.get(up(primaryCode));
+  return Number.isFinite(g) ? g : 0;
+}
+
+function syncAutoTransportFee() {
+  const shouldAdd = step1SelectedHasLengthCode();
+
+  if (!shouldAdd) {
+    delete autoFees[TRANSPORT_PRIMARY];
+    return;
   }
 
-  function getAutoFeeGrossTryBoth(primaryCode, fallbackCode) {
-    const map = getCodeMapForCurrentCountry();
-    if (!map) return 0;
+  const gross = getAutoFeeGross(TRANSPORT_PRIMARY);
 
-    const g1 = map.get(up(primaryCode));
-    if (Number.isFinite(g1)) return g1;
-
-    const g2 = map.get(up(fallbackCode));
-    if (Number.isFinite(g2)) return g2;
-
-    return 0;
-  }
-
-  function step1SelectedHasLengthCode() {
-    const row0 = getAllRows()[0];
-    const sel = row0?.querySelector('.conf-card.selected');
-    if (!sel) return false;
-
-    const txt = up(sel.textContent || '');
-    if (TRANSPORT_TRIGGER_CODES.some(c => txt.includes(c))) return true;
-
-    const nodes = sel.querySelectorAll('[data-price-code],[data-option-code],[data-option-price],.conf-price,.option-price,.sub-option-price');
-    for (const n of nodes) {
-      const c =
-        extractCode(n.getAttribute('data-price-code')) ||
-        extractCode(n.getAttribute('data-option-code')) ||
-        extractCode(n.getAttribute('data-option-price')) ||
-        extractCode(n.textContent || '');
-      if (c && TRANSPORT_TRIGGER_CODES.includes(up(c))) return true;
-    }
-
-    return false;
-  }
-
-  function syncAutoTransportFee() {
-    const shouldAdd = step1SelectedHasLengthCode();
-    if (!shouldAdd) {
-      delete autoFees[TRANSPORT_PRIMARY];
-      delete autoFees[TRANSPORT_FALLBACK];
-      return;
-    }
-
-    const gross = getAutoFeeGrossTryBoth(TRANSPORT_PRIMARY, TRANSPORT_FALLBACK);
-
-    // store under primary for consistency (code we will send prefers primary if it exists)
-    autoFees[TRANSPORT_PRIMARY] = {
-      name: TRANSPORT_LABEL,
-      code: TRANSPORT_PRIMARY,
-      priceGross: gross || 0,
-      fallbackCode: TRANSPORT_FALLBACK
-    };
-  }
+  autoFees[TRANSPORT_PRIMARY] = {
+    name: TRANSPORT_LABEL,
+    code: TRANSPORT_PRIMARY,
+    priceGross: gross || 0
+  };
+}
 
   // -----------------------------
   // EXTRAS
@@ -1075,13 +1047,10 @@
       if (code) items.push({ step: 'EXTRA', title: name, code, qty: 1 });
     });
 
-    // Auto transport fee: send the code that actually exists in sheet
-    if (autoFees && autoFees[TRANSPORT_PRIMARY]) {
-      const map = getCodeMapForCurrentCountry();
-      const primaryExists = map && map.has(TRANSPORT_PRIMARY);
-      const codeToSend = primaryExists ? TRANSPORT_PRIMARY : (TRANSPORT_FALLBACK || TRANSPORT_PRIMARY);
-      items.push({ step: 'FEE', title: TRANSPORT_LABEL, code: codeToSend, qty: 1 });
-    }
+    // Auto transport fee: send only the primary code
+if (autoFees && autoFees[TRANSPORT_PRIMARY]) {
+  items.push({ step: 'FEE', title: TRANSPORT_LABEL, code: TRANSPORT_PRIMARY, qty: 1 });
+}
 
     return items;
   }
