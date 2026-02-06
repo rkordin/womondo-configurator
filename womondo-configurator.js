@@ -10,7 +10,7 @@
   const WEBHOOK_URL = CFG.webhookUrl || '';
   const DEBUG = !!CFG.debug;
 
-  const TRANSPORT_PRIMARY = (CFG.transportCodePrimary || 'WOTRANS').toString().trim().toUpperCase();
+  const TRANSPORT_PRIMARY = (CFG.transportCodePrimary || 'DO0101').toString().trim().toUpperCase();
   const TRANSPORT_TRIGGER_CODES = (CFG.transportTriggerCodes || ['LENG0L2','LENG0L3','LENG0L4'])
     .map(s => (s || '').toString().trim().toUpperCase());
   const TRANSPORT_LABEL = 'Transport and documents cost';
@@ -495,11 +495,11 @@ function syncAutoTransportFee() {
   const shouldAdd = step1SelectedHasLengthCode();
 
   const map = getCodeMapForCurrentCountry();
-  console.log('[WOTRANS dbg]', {
+  console.log('[DO0101 dbg]', {
     currentCountryColKey,
     shouldAdd,
-    has: map?.has('WOTRANS'),
-    val: map?.get('WOTRANS'),
+    has: map?.has('DO0101'),
+    val: map?.get('DO0101'),
   });
 
   if (!shouldAdd) {
@@ -1472,8 +1472,8 @@ bindFormJsonOnlyWebhookAndFields();
     window.WOMONDO_getState = () => ({
       currentCountry,
       currentCountryColKey,
-      hasWOTRANS: !!sheet.byCol.get(currentCountryColKey)?.map?.has('WOTRANS'),
-      WOTRANS: sheet.byCol.get(currentCountryColKey)?.map?.get('WOTRANS'),
+      hasDO0101: !!sheet.byCol.get(currentCountryColKey)?.map?.has('DO0101'),
+      DO0101: sheet.byCol.get(currentCountryColKey)?.map?.get('DO0101'),
       autoFees
     });
   } // ✅ close initialize()
