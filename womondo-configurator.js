@@ -11,7 +11,6 @@
   const DEBUG = !!CFG.debug;
 
   const TRANSPORT_PRIMARY = (CFG.transportCodePrimary || 'WOTRANS').toString().trim().toUpperCase();
-  const TRANSPORT_FALLBACK = (CFG.transportCodeFallback || 'TRANS0A').toString().trim().toUpperCase();
   const TRANSPORT_TRIGGER_CODES = (CFG.transportTriggerCodes || ['LENG0L2','LENG0L3','LENG0L4'])
     .map(s => (s || '').toString().trim().toUpperCase());
   const TRANSPORT_LABEL = 'Transport and documents cost';
