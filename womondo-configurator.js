@@ -491,9 +491,16 @@ function getAutoFeeGross(primaryCode) {
   const g = map.get(up(primaryCode));
   return Number.isFinite(g) ? g : 0;
 }
-
 function syncAutoTransportFee() {
   const shouldAdd = step1SelectedHasLengthCode();
+
+  const map = getCodeMapForCurrentCountry();
+  console.log('[WOTRANS dbg]', {
+    currentCountryColKey,
+    shouldAdd,
+    has: map?.has('WOTRANS'),
+    val: map?.get('WOTRANS'),
+  });
 
   if (!shouldAdd) {
     delete autoFees[TRANSPORT_PRIMARY];
@@ -1460,13 +1467,19 @@ bindFormJsonOnlyWebhookAndFields();
     window.WOMONDO_generatePDF = generatePDF;
 
     log('READY ✅', window.WOMONDO_FINAL);
-  }
+
+    // (optional) expose a quick checker
+    window.WOMONDO_getState = () => ({
+      currentCountry,
+      currentCountryColKey,
+      hasWOTRANS: !!sheet.byCol.get(currentCountryColKey)?.map?.has('WOTRANS'),
+      WOTRANS: sheet.byCol.get(currentCountryColKey)?.map?.get('WOTRANS'),
+      autoFees
+    });
+  } // ✅ close initialize()
 
   // Run
   document.addEventListener('DOMContentLoaded', () => {
     initialize().catch(err => console.error('[WOMONDO] init failed:', err));
-
-    // =========================
-
   });
 })();
