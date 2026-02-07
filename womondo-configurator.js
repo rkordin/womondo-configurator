@@ -10,7 +10,7 @@
   const WEBHOOK_URL = CFG.webhookUrl || '';
   const DEBUG = !!CFG.debug;
 
-  const TRANSPORT_PRIMARY = (CFG.transportCodePrimary || 'DO0101').toString().trim().toUpperCase();
+  const TRANSPORT_PRIMARY = (CFG.transportCodePrimary || 'TR01WO').toString().trim().toUpperCase();
   const TRANSPORT_FALLBACK = (CFG.transportCodeFallback || 'WOTRANS').toString().trim().toUpperCase();
   const TRANSPORT_TRIGGER_CODES = (CFG.transportTriggerCodes || ['LENG0L2','LENG0L3','LENG0L4'])
     .map(s => (s || '').toString().trim().toUpperCase());
