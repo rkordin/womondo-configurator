@@ -1130,76 +1130,76 @@
   }
 
   function bindFormJsonOnlyWebhookAndFields() {
-    const wrapper = document.querySelector('.conf-email-form');
-    if (!wrapper) { console.warn('[WOMONDO] No .conf-email-form found'); return; }
+  const wrapper = document.querySelector('.conf-email-form');
+  if (!wrapper) { console.warn('[WOMONDO] No .conf-email-form found'); return; }
 
-    const form = wrapper.tagName?.toLowerCase() === 'form' ? wrapper : wrapper.querySelector('form');
-    if (!form) { console.warn('[WOMONDO] No <form> inside .conf-email-form'); return; }
+  const form = wrapper.tagName?.toLowerCase() === 'form' ? wrapper : wrapper.querySelector('form');
+  if (!form) { console.warn('[WOMONDO] No <form> inside .conf-email-form'); return; }
 
-    if (form.getAttribute('data-womondo-bound') === '1') return;
-    form.setAttribute('data-womondo-bound', '1');
+  if (form.getAttribute('data-womondo-bound') === '1') return;
+  form.setAttribute('data-womondo-bound', '1');
 
-    function ensureHidden(name) {
-      let el = form.querySelector(`[name="${CSS.escape(name)}"]`);
-      if (!el) {
-        el = document.createElement('input');
-        el.type = 'hidden';
-        el.name = name;
-        el.id = name;
-        form.appendChild(el);
-      }
-      el.required = false;
-      el.removeAttribute('required');
-      return el;
+  function ensureHidden(name) {
+    let el = form.querySelector(`[name="${CSS.escape(name)}"]`);
+    if (!el) {
+      el = document.createElement('input');
+      el.type = 'hidden';
+      el.name = name;
+      el.id = name;
+      form.appendChild(el);
     }
-
-    const payloadField = ensureHidden('payload_json');
-    ensureHidden('payload_full');
-    ensureHidden('country_col');
-    ensureHidden('total_gross');
-
-    let _sent = false;
-
-function fire() {
-  try {
-    writeSummaryAndPayloadToForm(form);
-
-    if (!_sent) {
-      _sent = true;
-
-      const raw = JSON.parse(payloadField.value || '{}');
-      setFieldValue(form, 'payload_full', JSON.stringify(raw));
-
-      const payload = normalizePayload(raw, form);
-      payloadField.value = JSON.stringify(payload);
-
-      setFieldValue(form, 'total_gross', payload?.total_gross ?? '');
-      setFieldValue(form, 'country_col', currentCountryColKey || '');
-
-      postWebhook(payload).catch(err => console.warn('[WOMONDO] webhook send failed', err));
-      setTimeout(() => { _sent = false; }, 2500);
-    }
-
-    log('fire() ok, payload_json length:', (payloadField.value || '').length);
-  } catch (e) {
-    console.warn('[WOMONDO] fire() failed', e);
+    el.required = false;
+    el.removeAttribute('required');
+    return el;
   }
-}
-form.addEventListener('submit', fire, true);
-}
+
+  const payloadField = ensureHidden('payload_json');
+  ensureHidden('payload_full');
+  ensureHidden('country_col');
+  ensureHidden('total_gross');
+
+  let _sent = false;
+
+  function fire() {
+    try {
+      writeSummaryAndPayloadToForm(form);
+
+      if (!_sent) {
+        _sent = true;
+
+        const raw = JSON.parse(payloadField.value || '{}');
+        setFieldValue(form, 'payload_full', JSON.stringify(raw));
+
+        const payload = normalizePayload(raw, form);
+        payloadField.value = JSON.stringify(payload);
+
+        setFieldValue(form, 'total_gross', payload?.total_gross ?? '');
+        setFieldValue(form, 'country_col', currentCountryColKey || '');
+
+        postWebhook(payload).catch(err => console.warn('[WOMONDO] webhook send failed', err));
+        setTimeout(() => { _sent = false; }, 2500);
+      }
+
+      log('fire() ok, payload_json length:', (payloadField.value || '').length);
+    } catch (e) {
+      console.warn('[WOMONDO] fire() failed', e);
+    }
+  }
+
+  form.addEventListener('submit', fire, true);
+} // ✅ IMPORTANT: this brace was missing in your pasted code
+
+
 // =============================
 // PDF (ROBUST) + BUTTON BINDING
 // =============================
 async function generatePDF() {
   try {
-    // If user didn't click model yet, still allow fallback
     if (!selectedModel) {
       const m = getSelectedModelNumberOrFallback();
       selectedModel = `Womondo ${m}`;
-      // baseTotalGross might still be 0 if not selected; that's ok
     }
 
-    // Hard-check jsPDF
     const jsPDF = window.jspdf?.jsPDF;
     if (!jsPDF) {
       console.error('[WOMONDO] jsPDF missing. Check the jsPDF script include.');
@@ -1207,7 +1207,6 @@ async function generatePDF() {
       return;
     }
 
-    // Always sync latest state before exporting
     syncAutoTransportFee();
     syncSelectedPricesFromDOM();
     updateSelectedEquipment();
@@ -1246,13 +1245,11 @@ async function generatePDF() {
       return y + (lines.length * LINE_H);
     }
 
-    // ---- Logo: use PNG (SVG->canvas is unreliable in Webflow/CORS)
     let y = MARGIN_TOP;
-    try {
-      // ✅ Replace this with a real PNG logo URL you host on Webflow assets
-      // (Upload logo as PNG to Webflow and paste the asset URL here)
-      const logoPngUrl = "https://cdn.prod.website-files.com/688c97f5afd8282a32cb8652/69875293a43d78238cf14721_Logo-womondo.png";
 
+    // Logo (PNG)
+    try {
+      const logoPngUrl = "https://cdn.prod.website-files.com/688c97f5afd8282a32cb8652/69875293a43d78238cf14721_Logo-womondo.png";
       const resp = await fetch(logoPngUrl, { cache: 'no-store' });
       if (resp.ok) {
         const blob = await resp.blob();
@@ -1264,15 +1261,13 @@ async function generatePDF() {
         });
 
         const logoW = 55;
-        const logoH = 18; // fixed height for stability
+        const logoH = 18;
         doc.addImage(dataUrl, "PNG", (PAGE_W - logoW) / 2, y, logoW, logoH);
         y += logoH + 8;
       }
-    } catch (e) {
-      // continue without logo
-    }
+    } catch (e) {}
 
-    // ---- Title
+    // Title
     y = ensureSpace(18, y);
     setBrand();
     doc.setFont('helvetica', 'bold');
@@ -1282,7 +1277,7 @@ async function generatePDF() {
 
     y = hr(y);
 
-    // ---- Meta
+    // Meta
     setInk();
     y = textWrapped(`Date: ${new Date().toLocaleDateString('de-DE')}`, MARGIN_X, y, maxTextW, 11, false);
 
@@ -1292,13 +1287,13 @@ async function generatePDF() {
     y += 2;
     y = hr(y);
 
-    // ---- Model
+    // Model
     y = ensureSpace(20, y);
     setInk();
     y = textWrapped(`Model: ${selectedModel}`, MARGIN_X, y, maxTextW, 12, true);
     y = textWrapped(`Base Price (gross): ${formatEuro(baseTotalGross || 0)}`, MARGIN_X, y, maxTextW, 11, false);
 
-    // ---- Equipment
+    // Equipment
     y += 2;
     y = ensureSpace(14, y);
     setBrand();
@@ -1330,7 +1325,7 @@ async function generatePDF() {
       });
     }
 
-    // ---- Fees
+    // Fees
     if (autoFees && Object.keys(autoFees).length) {
       y += 2;
       y = ensureSpace(14, y);
@@ -1346,7 +1341,7 @@ async function generatePDF() {
       });
     }
 
-    // ---- Extras
+    // Extras
     if (window.selectedExtras && Object.keys(window.selectedExtras).length) {
       y += 2;
       y = ensureSpace(14, y);
@@ -1363,7 +1358,7 @@ async function generatePDF() {
       });
     }
 
-    // ---- Total
+    // Total
     y += 6;
     y = hr(y);
     y = ensureSpace(18, y);
@@ -1373,7 +1368,7 @@ async function generatePDF() {
     setInk();
     y = textWrapped(`TOTAL (incl. VAT): ${formatEuro(totalGross)}`, MARGIN_X, y, maxTextW, 12, true);
 
-    // ---- Footer
+    // Footer
     const footerText =
       "ROBETA d.o.o., Pohorska cesta 6B, 2380 Slovenj Gradec, Slovenia, E: info@robetamobil.si, T: +386 40 866 280, S: www.robetamobil.si";
     doc.setFont('helvetica', 'normal');
@@ -1389,125 +1384,67 @@ async function generatePDF() {
   }
 }
 
-// expose for debugging (optional)
+// ✅ expose PDF globally ONCE (console + click)
 window.WOMONDO_generatePDF = generatePDF;
 
 
-  // =============================
-  // INIT
-  // =============================
-  async function initialize() {
-    document.querySelectorAll('.card-h1-header, h1').forEach(header => {
-      if ((header.textContent || '').toLowerCase().includes('off grid pack')) header.textContent = 'OFF GRID PACK';
-    });
+// =============================
+// INIT
+// =============================
+async function initialize() {
+lockCodesOnce();
+await loadSheet();
 
-    lockCodesOnce();
-    await loadSheet();
+const { detectedCountry, forcedCol } = readInitialCountryAndCol();
+applyPricesForCountry(detectedCountry, forcedCol || null);
 
-    const { detectedCountry, forcedCol } = readInitialCountryAndCol();
-    applyPricesForCountry(detectedCountry, forcedCol || null);
+const dropdownList = document.querySelector('.country-selector-dropdown .w-dropdown-list');
+if (dropdownList) dropdownList.addEventListener('click', handleCountryClick);
 
-    const dropdownList = document.querySelector('.country-selector-dropdown .w-dropdown-list');
-    if (dropdownList) dropdownList.addEventListener('click', handleCountryClick);
+// bind cards / subs / colors (your existing block)
+initializeExtras();
+bindFormJsonOnlyWebhookAndFields();
 
-    // bind card clicks
-    getAllRows().forEach((row, rowIndex) => {
-      row.querySelectorAll('.conf-card').forEach((card, cardIndex) => {
-        const header = card.querySelector('.conf-card-header');
-        (header || card).addEventListener('click', (e) => {
-          if (!e.target.closest('.conf-sub-card') && !e.target.closest('.conf-color-card')) {
-            handleCardClick(card, rowIndex, cardIndex);
-          }
-        });
-      });
-    });
+  // ✅ PDF click bind (one-time)
+  if (!document.documentElement.dataset.womondoPdfBound) {
+    document.documentElement.dataset.womondoPdfBound = "1";
 
-    // bind sub cards + colors
-    document.addEventListener('click', (e) => {
-      const colorTarget = e.target.closest('.color-swatch, .conf-color-card');
-      if (colorTarget) {
-        const colorCard = colorTarget.closest('.conf-color-card');
-        if (colorCard) {
-          const ids = getCardIndicesFromEl(colorCard);
-          if (ids?.card) {
-            e.preventDefault();
-            ensureCardSelected(ids.card, ids.rowIndex, ids.cardIndex);
-            handleColorCardClick(colorCard, ids.card, ids.cardId);
-            return;
-          }
-        }
-      }
-
-      const subTarget = e.target.closest('.sub-card-content, .conf-sub-card');
-      if (subTarget) {
-        const subCard = subTarget.closest('.conf-sub-card');
-        if (subCard) {
-          const ids = getCardIndicesFromEl(subCard);
-          if (ids?.card) {
-            e.preventDefault();
-            ensureCardSelected(ids.card, ids.rowIndex, ids.cardIndex);
-            handleSubCardClick(subCard, ids.card, ids.cardId);
-            return;
-          }
-        }
-      }
-    }, true);
-
-    initializeExtras();
-    bindFormJsonOnlyWebhookAndFields();
-
-    // Expose for debugging + Webflow interactions
-    window.WOMONDO_generatePDF = generatePDF;
-
-// ✅ expose PDF globally (so console + click can call it)
-window.WOMONDO_generatePDF = generatePDF;
-
-// ✅ PDF button (one-time bind, Webflow success-safe)
-if (!document.documentElement.dataset.womondoPdfBound) {
-  document.documentElement.dataset.womondoPdfBound = "1";
-
-  document.addEventListener(
-    "click",
-    (e) => {
+    document.addEventListener("click", (e) => {
+      // IMPORTANT: your element in Webflow is .download-pdf-btn (not .download-pdf-btn*s*)
       const btn = e.target.closest(".download-pdf-btn");
       if (!btn) return;
 
       e.preventDefault();
-      e.stopImmediatePropagation(); // ✅ stronger than stopPropagation
+      e.stopImmediatePropagation();
+window.WOMONDO_generatePDF();
+    }, true);
+  }
 
-      // call the global (always available)
-      window.WOMONDO_generatePDF();
-    },
-    true
-  );
+  syncAutoTransportFee();
+  updateSelectedEquipment();
+  calculateTotal();
+
+  window.WOMONDO_getState = () => ({
+    currentCountry,
+    currentCountryColKey,
+    transportPrimary: TRANSPORT_PRIMARY,
+    hasTransport: !!sheet.byCol.get(currentCountryColKey)?.map?.has(TRANSPORT_PRIMARY),
+    transportValue: sheet.byCol.get(currentCountryColKey)?.map?.get(TRANSPORT_PRIMARY),
+    autoFees,
+    jsPdfLoaded: !!window.jspdf?.jsPDF,
+  });
+
+  log("READY ✅", window.WOMONDO_FINAL);
 }
 
-syncAutoTransportFee();
-updateSelectedEquipment();
-calculateTotal();
-
-// quick state inspector
-window.WOMONDO_getState = () => ({
-  currentCountry,
-  currentCountryColKey,
-  transportPrimary: TRANSPORT_PRIMARY,
-  hasTransport: !!sheet.byCol.get(currentCountryColKey)?.map?.has(TRANSPORT_PRIMARY),
-  transportValue: sheet.byCol.get(currentCountryColKey)?.map?.get(TRANSPORT_PRIMARY),
-  autoFees,
-  jsPdfLoaded: !!window.jspdf?.jsPDF,
-});
-
-log("READY ✅", window.WOMONDO_FINAL);
-}
-
-// ✅ Webflow-safe init (run immediately if DOM already loaded)
+// ✅ Webflow-safe init (ONLY ONE)
 function start() {
   initialize().catch((err) => console.error("[WOMONDO] init failed:", err));
 }
-
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", start);
 } else {
   start();
 }
-})();
+
+ })(); 
