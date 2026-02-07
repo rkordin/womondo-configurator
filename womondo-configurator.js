@@ -1160,77 +1160,33 @@
 
     let _sent = false;
 
-    function fire() {
-      try {
-        writeSummaryAndPayloadToForm(form);
+function fire() {
+  try {
+    writeSummaryAndPayloadToForm(form);
 
-        if (!_sent) {
-          _sent = true;
+    if (!_sent) {
+      _sent = true;
 
-          const raw = JSON.parse(payloadField.value || '{}');
-          setFieldValue(form, 'payload_full', JSON.stringify(raw));
+      const raw = JSON.parse(payloadField.value || '{}');
+      setFieldValue(form, 'payload_full', JSON.stringify(raw));
 
-          const payload = normalizePayload(raw, form);
-          payloadField.value = JSON.stringify(payload);
+      const payload = normalizePayload(raw, form);
+      payloadField.value = JSON.stringify(payload);
 
-          setFieldValue(form, 'total_gross', payload?.total_gross ?? '');
-          setFieldValue(form, 'country_col', currentCountryColKey || '');
+      setFieldValue(form, 'total_gross', payload?.total_gross ?? '');
+      setFieldValue(form, 'country_col', currentCountryColKey || '');
 
-          postWebhook(payload).catch(err => console.warn('[WOMONDO] webhook send failed', err));
-          setTimeout(() => { _sent = false; }, 2500);
-        }
-
-        log('fire() ok, payload_json length:', (payloadField.value || '').length);
-      } catch (e) {
-        console.warn('[WOMONDO] fire() failed', e);
-      }
+      postWebhook(payload).catch(err => console.warn('[WOMONDO] webhook send failed', err));
+      setTimeout(() => { _sent = false; }, 2500);
     }
 
-    function isSubmitishTarget(t) {
-      // ✅ ignore anything inside Webflow SUCCESS state
-      if (t.closest('.w-form-done')) return false;
-
-      // ✅ only true form submit elements should trigger webhook
-      const submitEl = t.closest('.conf-email-form form button[type="submit"], .conf-email-form form input[type="submit"]');
-      return !!submitEl;
-    }
-
-    document.addEventListener('pointerdown', (e) => { if (isSubmitishTarget(e.target)) fire(); }, true);
-    document.addEventListener('click', (e) => { if (isSubmitishTarget(e.target)) fire(); }, true);
-    form.addEventListener('submit', fire, true);
-
-    log('bindFormJsonOnlyWebhookAndFields ✅');
+    log('fire() ok, payload_json length:', (payloadField.value || '').length);
+  } catch (e) {
+    console.warn('[WOMONDO] fire() failed', e);
   }
-
-  // =============================
-  // jsPDF loader (safe)
-  // =============================
-  function ensureJsPdfLoaded() {
-    return new Promise((resolve, reject) => {
-      if (window.jspdf?.jsPDF) return resolve(true);
-
-      // already injecting?
-      if (document.querySelector('script[data-womondo-jspdf="1"]')) {
-        // wait a moment
-        const t0 = Date.now();
-        const timer = setInterval(() => {
-          if (window.jspdf?.jsPDF) { clearInterval(timer); resolve(true); }
-          else if (Date.now() - t0 > 8000) { clearInterval(timer); reject(new Error('jsPDF load timeout')); }
-        }, 100);
-        return;
-      }
-
-      const s = document.createElement('script');
-      s.src = JSPDF_URL;
-      s.async = true;
-      s.defer = true;
-      s.setAttribute('data-womondo-jspdf', '1');
-      s.onload = () => window.jspdf?.jsPDF ? resolve(true) : reject(new Error('jsPDF loaded but window.jspdf.jsPDF missing'));
-      s.onerror = () => reject(new Error('Failed to load jsPDF'));
-      document.head.appendChild(s);
-    });
-  }
-
+}
+form.addEventListener('submit', fire, true);
+}
 // =============================
 // PDF (ROBUST) + BUTTON BINDING
 // =============================
@@ -1436,15 +1392,6 @@ async function generatePDF() {
 // expose for debugging (optional)
 window.WOMONDO_generatePDF = generatePDF;
 
-// Bind PDF button (capture = true)
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('.download-pdf-btn');
-  if (!btn) return;
-  e.preventDefault();
-  e.stopPropagation();
-  console.log('[WOMONDO] PDF click ✅');
-  generatePDF();
-}, true);
 
   // =============================
   // INIT
@@ -1512,24 +1459,19 @@ document.addEventListener('click', (e) => {
     // Expose for debugging + Webflow interactions
     window.WOMONDO_generatePDF = generatePDF;
 
-    // ✅ PDF button (works also in Webflow SUCCESS)
-    document.addEventListener('click', (e) => {
-      // primary selector
-      let btn = e.target.closest('.download-pdf-btn');
+// ✅ PDF button (one-time bind, also works in Webflow SUCCESS)
+if (!document.documentElement.dataset.womondoPdfBound) {
+  document.documentElement.dataset.womondoPdfBound = "1";
 
-      // fallback: any button/link that mentions "pdf"
-      if (!btn) {
-        const candidate = e.target.closest('a, button');
-        const txt = (candidate?.textContent || '').trim().toLowerCase();
-        if (candidate && txt.includes('pdf')) btn = candidate;
-      }
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.download-pdf-btn');
+    if (!btn) return;
 
-      if (!btn) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-      generatePDF();
-    }, true);
+    e.preventDefault();
+    e.stopImmediatePropagation(); // ✅ stronger than stopPropagation
+    generatePDF();
+  }, true);
+}
 
     syncAutoTransportFee();
     updateSelectedEquipment();
