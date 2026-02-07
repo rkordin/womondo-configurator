@@ -1458,44 +1458,52 @@ if (document.readyState === "loading") {
     };
   }
 
-  function bindBtn() {
-    const btn = document.querySelector(".download-pdf-btn");
-    if (!btn) return;
-
-    if (btn.dataset.pdfBound === "1") return;
-    btn.dataset.pdfBound = "1";
-
-    let busy = false;
-    btn.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (busy) return;
-      busy = true;
-
-      const oldText = btn.textContent;
-      btn.style.pointerEvents = "none";
-      btn.textContent = "Generating PDF…";
-
-      try {
-        if (typeof window.WOMONDO_generatePDF !== "function") {
-          throw new Error("window.WOMONDO_generatePDF is not a function (still undefined).");
-        }
-        await window.WOMONDO_generatePDF();
-      } catch (err) {
-        console.error("[WOMONDO][PDF FIX] PDF failed:", err);
-        alert("PDF failed. Open console for details.");
-      } finally {
-        btn.textContent = oldText;
-        btn.style.pointerEvents = "";
-        busy = false;
-      }
-    });
+function bindBtnUntilReady(attempts = 30) {
+  const btn = document.querySelector(".download-pdf-btn");
+  if (!btn) {
+    if (attempts > 0) return setTimeout(() => bindBtnUntilReady(attempts - 1), 300);
+    return;
   }
 
-  bindBtn();
-  setTimeout(bindBtn, 400);
-  setTimeout(bindBtn, 1200);
+  // only bind once
+  if (btn.dataset.pdfBound === "1") return;
+
+  // wait until PDF function exists
+  if (typeof window.WOMONDO_generatePDF !== "function") {
+    if (attempts > 0) return setTimeout(() => bindBtnUntilReady(attempts - 1), 300);
+    console.warn("[WOMONDO][PDF FIX] Button found but WOMONDO_generatePDF not ready yet.");
+    return;
+  }
+
+  btn.dataset.pdfBound = "1";
+  let busy = false;
+
+  btn.addEventListener("click", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (busy) return;
+    busy = true;
+
+    const oldText = btn.textContent;
+    btn.style.pointerEvents = "none";
+    btn.textContent = "Generating PDF…";
+
+    try {
+      await window.WOMONDO_generatePDF();
+    } catch (err) {
+      console.error("[WOMONDO][PDF FIX] PDF failed:", err);
+      alert("PDF failed. Open console for details.");
+    } finally {
+      btn.textContent = oldText;
+      btn.style.pointerEvents = "";
+      busy = false;
+    }
+  });
+
+  console.log("[WOMONDO][PDF FIX] Bound ✅");
+}
+
+bindBtnUntilReady();
 
   window.WOMONDO_PDF_DIAG = () => {
     console.log("[WOMONDO][PDF DIAG]", {
