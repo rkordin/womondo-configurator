@@ -1464,99 +1464,76 @@ if (document.readyState === "loading") {
 } else {
   start();
 }
+
+// IMPORTANT: end the big IIFE RIGHT HERE (only once)
+})(); 
+
+
 /* =============================
-   WOMONDO PDF EXPOSE + BIND FIX (paste at very bottom of JS file)
+   WOMONDO PDF EXPOSE + BIND FIX
    ============================= */
 (function WOMONDO_PDF_FIX() {
-  // 1) Robust jsPDF getter (covers jspdf.umd naming)
   function getJsPDF() {
     return window.jspdf?.jsPDF || window.jspdf?.default || window.jsPDF || null;
   }
 
-  // 2) Try to find generatePDF that might be scoped inside an IIFE
-  // If your generatePDF is not global, we can't reach it directly.
-  // So we provide a fallback wrapper that calls the global if you expose it.
-  // --> IMPORTANT: You must expose it INSIDE your IIFE OR attach it to window.
-  if (typeof window.WOMONDO_generatePDF !== "function") {
-    console.warn("[WOMONDO][PDF FIX] window.WOMONDO_generatePDF missing — creating placeholder wrapper.");
-
-    // Placeholder wrapper: will fail with clear message until you wire generatePDF to window.
-    window.WOMONDO_generatePDF = async function () {
-      const jsPDF = getJsPDF();
-      console.log("[WOMONDO][PDF FIX] jsPDF available:", !!jsPDF);
-
-      throw new Error(
-        "WOMONDO_generatePDF wrapper exists, but your real generatePDF() is not exposed. " +
-        "Expose it INSIDE your main IIFE with: window.WOMONDO_generatePDF = generatePDF;"
-      );
+  // Fix your jsPdfLoaded check for WOMONDO_getState (optional)
+  if (typeof window.WOMONDO_getState === "function") {
+    const old = window.WOMONDO_getState;
+    window.WOMONDO_getState = () => {
+      const st = old();
+      st.jsPdfLoaded = !!getJsPDF();
+      return st;
     };
   }
 
-  // 3) Bind the PDF button (capture phase so Webflow won’t steal it)
   function bindBtn() {
     const btn = document.querySelector(".download-pdf-btn");
-    if (!btn) {
-      console.warn("[WOMONDO][PDF FIX] .download-pdf-btn not found yet.");
-      return;
-    }
+    if (!btn) return;
+
     if (btn.dataset.pdfBound === "1") return;
     btn.dataset.pdfBound = "1";
 
     let busy = false;
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
 
-    document.addEventListener(
-      "click",
-      async (e) => {
-        const hit = e.target.closest(".download-pdf-btn");
-        if (!hit) return;
+      if (busy) return;
+      busy = true;
 
-        e.preventDefault();
-        e.stopImmediatePropagation();
+      const oldText = btn.textContent;
+      btn.style.pointerEvents = "none";
+      btn.textContent = "Generating PDF…";
 
-        if (busy) return;
-        busy = true;
-
-        const old = hit.textContent;
-        hit.style.pointerEvents = "none";
-        hit.textContent = "Generating PDF…";
-
-        try {
-          await new Promise((r) => setTimeout(r, 150));
-          await window.WOMONDO_generatePDF();
-          console.log("[WOMONDO][PDF FIX] PDF generated OK");
-        } catch (err) {
-          console.error("[WOMONDO][PDF FIX] PDF failed:", err);
-          alert("PDF failed. Open console for details.");
-        } finally {
-          hit.textContent = old;
-          hit.style.pointerEvents = "";
-          busy = false;
+      try {
+        if (typeof window.WOMONDO_generatePDF !== "function") {
+          throw new Error("window.WOMONDO_generatePDF is not a function (still undefined).");
         }
-      },
-      true
-    );
-
-    console.log("[WOMONDO][PDF FIX] Bound .download-pdf-btn ✅", btn);
+        await window.WOMONDO_generatePDF();
+      } catch (err) {
+        console.error("[WOMONDO][PDF FIX] PDF failed:", err);
+        alert("PDF failed. Open console for details.");
+      } finally {
+        btn.textContent = oldText;
+        btn.style.pointerEvents = "";
+        busy = false;
+      }
+    });
   }
 
-  // bind now + again after Webflow renders
   bindBtn();
-  setTimeout(bindBtn, 500);
-  setTimeout(bindBtn, 1500);
+  setTimeout(bindBtn, 400);
+  setTimeout(bindBtn, 1200);
 
-  // 4) Diagnostics you can run anytime
   window.WOMONDO_PDF_DIAG = () => {
-    const jsPDF = getJsPDF();
-    const btn = document.querySelector(".download-pdf-btn");
     console.log("[WOMONDO][PDF DIAG]", {
-      jsPDF_global: !!jsPDF,
+      jsPDF_global: !!getJsPDF(),
       WOMONDO_generatePDF: typeof window.WOMONDO_generatePDF,
-      buttonFound: !!btn,
-      buttonBound: btn?.dataset?.pdfBound,
-      WOMONDO_FINAL: window.WOMONDO_FINAL,
+      WOMONDO_getState: typeof window.WOMONDO_getState,
+      WOMONDO_FINAL: window.WOMONDO_FINAL
     });
   };
 
-  console.log("[WOMONDO][PDF FIX] Installed. Run WOMONDO_PDF_DIAG() in console.");
+  console.log("[WOMONDO][PDF FIX] Installed. Run WOMONDO_PDF_DIAG()");
 })();
- })();
