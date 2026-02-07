@@ -1202,9 +1202,14 @@
       }
     }
 
-    function isSubmitishTarget(t) {
-      return !!t.closest('.conf-email-form [type="submit"], .conf-email-form .w-button');
-    }
+function isSubmitishTarget(t) {
+  // ✅ ignore anything inside Webflow SUCCESS state
+  if (t.closest('.w-form-done')) return false;
+
+  // ✅ only true form submit elements should trigger webhook
+  const submitEl = t.closest('.conf-email-form form button[type="submit"], .conf-email-form form input[type="submit"]');
+  return !!submitEl;
+}
 
     document.addEventListener('pointerdown', (e) => { if (isSubmitishTarget(e.target)) fire(); }, true);
     document.addEventListener('click', (e) => { if (isSubmitishTarget(e.target)) fire(); }, true);
