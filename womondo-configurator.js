@@ -2,6 +2,8 @@
 (() => {
   'use strict';
 
+  console.log("[WOMONDO] configurator file loaded ✅");
+
   // =============================
   // CONFIG (from window.WOMONDO_CFG)
   // =============================
