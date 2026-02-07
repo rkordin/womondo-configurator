@@ -1200,7 +1200,7 @@ async function generatePDF() {
       selectedModel = `Womondo ${m}`;
     }
 
-    const jsPDF = window.jspdf?.jsPDF;
+const jsPDF = window.jspdf?.jsPDF || window.jspdf?.default || window.jsPDF;
     if (!jsPDF) {
       console.error('[WOMONDO] jsPDF missing. Check the jsPDF script include.');
       alert('PDF not available (jsPDF not loaded). Please check the jsPDF script include.');
@@ -1405,37 +1405,6 @@ async function initialize() {
   initializeExtras();
   bindFormJsonOnlyWebhookAndFields();
 
-  // ✅ PDF button now ONLY generates PDF (no JSON) + delay + anti-double-click
-  const pdfButton = document.querySelector('.download-pdf-btn');
-  if (pdfButton && !pdfButton.dataset.pdfBound) {
-    pdfButton.dataset.pdfBound = "1";
-
-    let isGenerating = false;
-
-    pdfButton.addEventListener('click', async function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (isGenerating) return;
-      isGenerating = true;
-
-      const oldText = pdfButton.textContent;
-      pdfButton.style.pointerEvents = "none";
-      pdfButton.textContent = "Generating PDF…";
-
-      try {
-        await new Promise(r => setTimeout(r, 250));
-        await generatePDF();
-      } catch (err) {
-        console.error('[WOMONDO] PDF generation failed:', err);
-        alert('PDF generation failed. Check console.');
-      } finally {
-        pdfButton.textContent = oldText;
-        pdfButton.style.pointerEvents = "";
-        isGenerating = false;
-      }
-    });
-  }
 
   // init fees + total
   syncAutoTransportFee();
@@ -1449,7 +1418,7 @@ async function initialize() {
     hasTransport: !!sheet.byCol.get(currentCountryColKey)?.map?.has(TRANSPORT_PRIMARY),
     transportValue: sheet.byCol.get(currentCountryColKey)?.map?.get(TRANSPORT_PRIMARY),
     autoFees,
-    jsPdfLoaded: !!window.jspdf?.jsPDF,
+jsPdfLoaded: !!(window.jspdf?.jsPDF || window.jspdf?.default || window.jsPDF),
   });
 
   log("READY ✅", window.WOMONDO_FINAL);
@@ -1535,5 +1504,5 @@ if (document.readyState === "loading") {
     });
   };
 
-  console.log("[WOMONDO][PDF FIX] Installed. Run WOMONDO_PDF_DIAG()");
+console.log("[WOMONDO][PDF FIX] Installed. Run WOMONDO_PDF_DIAG()");
 })();
