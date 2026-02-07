@@ -1008,7 +1008,10 @@
 
     // ✅ Use sendBeacon only (prevents CORS preflight spam)
     try {
-const blob = new Blob([JSON.stringify(payload)], { type: 'text/plain;charset=UTF-8' });
+// ✅ CORS-safe beacon (no preflight)
+const blob = new Blob([JSON.stringify(payload)], {
+  type: 'text/plain;charset=UTF-8'
+});
 const ok = !!(navigator.sendBeacon && navigator.sendBeacon(WEBHOOK_URL, blob));
       if (ok) { log('Webhook sent via sendBeacon ✅'); return { ok: true, via: 'beacon' }; }
       console.warn('[WOMONDO] sendBeacon failed or not available');
