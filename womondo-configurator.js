@@ -1,4 +1,4 @@
-/* womondo-configurator.js */
+/* womondo-configurator.js — FINAL (PDF + CORS-safe beacon webhook) */
 (() => {
   'use strict';
 
@@ -12,19 +12,25 @@
 
   // ✅ ONLY ONE transport code (no fallback anywhere)
   const TRANSPORT_PRIMARY = (CFG.transportCodePrimary || 'DO0101').toString().trim().toUpperCase();
-  const TRANSPORT_TRIGGER_CODES = (CFG.transportTriggerCodes || ['LENG0L2','LENG0L3','LENG0L4'])
+  const TRANSPORT_TRIGGER_CODES = (CFG.transportTriggerCodes || ['LENG0L2', 'LENG0L3', 'LENG0L4'])
     .map(s => (s || '').toString().trim().toUpperCase());
   const TRANSPORT_LABEL = 'Transport and documents cost';
 
   // Webflow textarea field name (can override via CFG.summaryTextareaName)
   const SUMMARY_TEXTAREA_NAME = (CFG.summaryTextareaName || 'textarea-field').toString();
 
+  // Optional: jsPDF CDN (can override via CFG.jsPdfUrl)
+  const JSPDF_URL =
+    (CFG.jsPdfUrl || 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+      .toString()
+      .trim();
+
   // Dropdown label -> sheet column header
   const COUNTRY_TO_SHEET_COL = {
-    'GERMANY': 'DE','AUSTRIA': 'AT','BELGIUM': 'BE','BULGARIA': 'BG','CROATIA': 'HR','CYPRUS': 'CY',
-    'CZECH REPUBLIC': 'CZ','DENMARK': 'DK','ESTONIA': 'EE','FINLAND': 'FI','FRANCE': 'FR','GREECE': 'GR',
-    'HUNGARY': 'HU','ITALY': 'IT','NETHERLANDS': 'NL','POLAND': 'PL','PORTUGAL': 'PT','ROMANIA': 'RO',
-    'SLOVENIA': 'SI','SPAIN': 'ES','SWEDEN': 'SE'
+    'GERMANY': 'DE', 'AUSTRIA': 'AT', 'BELGIUM': 'BE', 'BULGARIA': 'BG', 'CROATIA': 'HR', 'CYPRUS': 'CY',
+    'CZECH REPUBLIC': 'CZ', 'DENMARK': 'DK', 'ESTONIA': 'EE', 'FINLAND': 'FI', 'FRANCE': 'FR', 'GREECE': 'GR',
+    'HUNGARY': 'HU', 'ITALY': 'IT', 'NETHERLANDS': 'NL', 'POLAND': 'PL', 'PORTUGAL': 'PT', 'ROMANIA': 'RO',
+    'SLOVENIA': 'SI', 'SPAIN': 'ES', 'SWEDEN': 'SE'
   };
 
   // =============================
@@ -41,13 +47,7 @@
   window.selectedExtras = window.selectedExtras || {};
   let autoFees = {}; // { CODE: { name, code, priceGross } }
 
-  const selectionRules = {
-    0: 1,
-    1: 1,
-    2: 'multiple',
-    3: 'multiple',
-    4: 1
-  };
+  const selectionRules = { 0: 1, 1: 1, 2: 'multiple', 3: 'multiple', 4: 1 };
 
   // =============================
   // HELPERS
@@ -174,17 +174,17 @@
     sheet.tableRows = table.slice(1);
 
     const idxOf = (name) => sheet.headerUp.indexOf(up(name));
-    sheet.idx.code   = idxOf('MO_CODE');
-    sheet.idx.model  = idxOf('MODEL');
-    sheet.idx.trans  = idxOf('TRANS');
+    sheet.idx.code = idxOf('MO_CODE');
+    sheet.idx.model = idxOf('MODEL');
+    sheet.idx.trans = idxOf('TRANS');
     sheet.idx.engine = idxOf('ENGINE');
-    sheet.idx.brand  = idxOf('BRAND');
+    sheet.idx.brand = idxOf('BRAND');
 
     if (sheet.idx.code < 0) throw new Error('CSV must contain MO_CODE header');
 
     sheet.byCol.clear();
 
-    const META = new Set(['MO_CODE','MODEL','BRAND','TRANS','ENGINE','PRICE','DESCRIPTION']);
+    const META = new Set(['MO_CODE', 'MODEL', 'BRAND', 'TRANS', 'ENGINE', 'PRICE', 'DESCRIPTION']);
     sheet.headerRaw.forEach((h, colIndex) => {
       const H = up(h);
       if (colIndex === sheet.idx.code) return;
@@ -229,7 +229,7 @@
     if (sheet.idx.model < 0 || sheet.idx.trans < 0 || sheet.idx.engine < 0) return NaN;
 
     for (const r of sheet.tableRows) {
-      const m = parseInt((r[sheet.idx.model] || '').toString().replace(/[^\d]/g,''), 10);
+      const m = parseInt((r[sheet.idx.model] || '').toString().replace(/[^\d]/g, ''), 10);
       const t = up(r[sheet.idx.trans]);
       const e = up(r[sheet.idx.engine]);
       if (m === M && t === T && e === E) {
@@ -289,8 +289,10 @@
     if (!subCard) return;
     subCard.setAttribute('data-option-gross-base', String(grossAddon));
     const txt = '+' + formatEuro(grossAddon);
-    subCard.querySelector('.option-price') && (subCard.querySelector('.option-price').textContent = txt);
-    subCard.querySelector('.sub-option-price') && (subCard.querySelector('.sub-option-price').textContent = txt);
+    const a = subCard.querySelector('.option-price');
+    const b = subCard.querySelector('.sub-option-price');
+    if (a) a.textContent = txt;
+    if (b) b.textContent = txt;
   }
 
   function applyStep1BasePrices(colIndex) {
@@ -354,8 +356,10 @@
 
         sub.setAttribute('data-option-gross-base', String(gross));
         const txt = '+' + formatEuro(gross);
-        sub.querySelector('.option-price') && (sub.querySelector('.option-price').textContent = txt);
-        sub.querySelector('.sub-option-price') && (sub.querySelector('.sub-option-price').textContent = txt);
+        const a = sub.querySelector('.option-price');
+        const b = sub.querySelector('.sub-option-price');
+        if (a) a.textContent = txt;
+        if (b) b.textContent = txt;
       });
     });
 
@@ -520,12 +524,7 @@
     }
 
     const gross = getAutoFeeGrossPrimaryOnly(TRANSPORT_PRIMARY);
-
-    autoFees[TRANSPORT_PRIMARY] = {
-      name: TRANSPORT_LABEL,
-      code: TRANSPORT_PRIMARY,
-      priceGross: gross || 0
-    };
+    autoFees[TRANSPORT_PRIMARY] = { name: TRANSPORT_LABEL, code: TRANSPORT_PRIMARY, priceGross: gross || 0 };
   }
 
   // =============================
@@ -846,7 +845,7 @@
     const B = up(brandKey);
 
     for (const r of sheet.tableRows) {
-      const m = parseInt((r[sheet.idx.model] || '').toString().replace(/[^\d]/g,''), 10);
+      const m = parseInt((r[sheet.idx.model] || '').toString().replace(/[^\d]/g, ''), 10);
       const t = up(r[sheet.idx.trans]);
       const e = up(r[sheet.idx.engine]);
       if (m !== M || t !== T || e !== E) continue;
@@ -863,16 +862,16 @@
   }
 
   const CHASSIS_REMAP = {
-    FIAT:    { DRIVE: 'CH0775',  TECH: 'CH0774',  STYLE_L3L4: 'CH0776',  STYLE_L2: 'CH0777' },
-    CITROEN: { DRIVE: 'CH0778',  TECH: 'CH0779',  STYLE_L3L4: 'CH0780',  STYLE_L2: 'CH0781' },
-    OPEL:    { DRIVE: 'CH0782',  TECH: 'CH0783', STYLE_L3L4: 'CH0784',  STYLE_L2: 'CH0785' }
+    FIAT: { DRIVE: 'CH0775', TECH: 'CH0774', STYLE_L3L4: 'CH0776', STYLE_L2: 'CH0777' },
+    CITROEN: { DRIVE: 'CH0778', TECH: 'CH0779', STYLE_L3L4: 'CH0780', STYLE_L2: 'CH0781' },
+    OPEL: { DRIVE: 'CH0782', TECH: 'CH0783', STYLE_L3L4: 'CH0784', STYLE_L2: 'CH0785' }
   };
 
   function chassisTypeFromCode(code) {
     const c = (code || '').toUpperCase();
-    if (['CH0775','CH0778','CH0782'].includes(c)) return 'DRIVE';
-    if (['CH0774','CH0779','CH0783'].includes(c)) return 'TECH';
-    if (['CH0776','CH0777','CH0780','CH0781','CH0784','CH0785'].includes(c)) return 'STYLE';
+    if (['CH0775', 'CH0778', 'CH0782'].includes(c)) return 'DRIVE';
+    if (['CH0774', 'CH0779', 'CH0783'].includes(c)) return 'TECH';
+    if (['CH0776', 'CH0777', 'CH0780', 'CH0781', 'CH0784', 'CH0785'].includes(c)) return 'STYLE';
     return null;
   }
 
@@ -915,7 +914,9 @@
   function getSelectedColorNameFromUI() {
     const row4 = getAllRows()[4];
     const card = row4?.querySelector('.conf-card.selected');
-    const selectedColor = card?.querySelector('.conf-color-card.selected, .color-swatch.selected')?.closest('.conf-color-card');
+    const selectedColor = card
+      ?.querySelector('.conf-color-card.selected, .color-swatch.selected')
+      ?.closest('.conf-color-card');
     return (selectedColor?.querySelector('.color-name')?.textContent || '').trim();
   }
 
@@ -1001,7 +1002,7 @@
   }
 
   // =============================
-  // WEBHOOK SEND
+  // WEBHOOK SEND (CORS-SAFE)
   // =============================
   async function postWebhook(payload) {
     if (!WEBHOOK_URL) {
@@ -1009,27 +1010,16 @@
       return { ok: false, error: 'Missing webhookUrl' };
     }
 
+    // ✅ Use sendBeacon only (prevents CORS preflight spam)
     try {
       const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-      if (navigator.sendBeacon && navigator.sendBeacon(WEBHOOK_URL, blob)) {
-        log('Webhook sent via sendBeacon ✅');
-        return { ok: true, via: 'beacon' };
-      }
-    } catch (e) {}
-
-    try {
-      const res = await fetch(WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        keepalive: true
-      });
-      const text = await res.text().catch(() => '');
-      log('Webhook fetch status:', res.status, text?.slice?.(0, 200) || '');
-      return { ok: res.ok, status: res.status, body: text };
-    } catch (err) {
-      console.warn('[WOMONDO] Webhook error:', err);
-      return { ok: false, error: String(err) };
+      const ok = !!(navigator.sendBeacon && navigator.sendBeacon(WEBHOOK_URL, blob));
+      if (ok) { log('Webhook sent via sendBeacon ✅'); return { ok: true, via: 'beacon' }; }
+      console.warn('[WOMONDO] sendBeacon failed or not available');
+      return { ok: false, error: 'sendBeacon failed' };
+    } catch (e) {
+      console.warn('[WOMONDO] sendBeacon exception', e);
+      return { ok: false, error: String(e) };
     }
   }
 
@@ -1196,219 +1186,254 @@
           setTimeout(() => { _sent = false; }, 2500);
         }
 
-        console.log('[WOMONDO] fire() ok, payload_json length:', (payloadField.value || '').length);
+        log('fire() ok, payload_json length:', (payloadField.value || '').length);
       } catch (e) {
         console.warn('[WOMONDO] fire() failed', e);
       }
     }
 
-function isSubmitishTarget(t) {
-  // ✅ ignore anything inside Webflow SUCCESS state
-  if (t.closest('.w-form-done')) return false;
+    function isSubmitishTarget(t) {
+      // ✅ ignore anything inside Webflow SUCCESS state
+      if (t.closest('.w-form-done')) return false;
 
-  // ✅ only true form submit elements should trigger webhook
-  const submitEl = t.closest('.conf-email-form form button[type="submit"], .conf-email-form form input[type="submit"]');
-  return !!submitEl;
-}
+      // ✅ only true form submit elements should trigger webhook
+      const submitEl = t.closest('.conf-email-form form button[type="submit"], .conf-email-form form input[type="submit"]');
+      return !!submitEl;
+    }
 
     document.addEventListener('pointerdown', (e) => { if (isSubmitishTarget(e.target)) fire(); }, true);
     document.addEventListener('click', (e) => { if (isSubmitishTarget(e.target)) fire(); }, true);
     form.addEventListener('submit', fire, true);
 
-    console.log('[WOMONDO] bindFormJsonOnlyWebhookAndFields ✅');
+    log('bindFormJsonOnlyWebhookAndFields ✅');
   }
-// ===== PDF generator (STYLED + WRAP + MULTI-PAGE) — GROSS ONLY =====
-async function generatePDF() {
-  try {
-    if (!selectedModel) { alert('Please select a model first!'); return; }
-    if (!window.jspdf?.jsPDF) { alert('jsPDF not loaded. Check script include.'); return; }
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  // =============================
+  // jsPDF loader (safe)
+  // =============================
+  function ensureJsPdfLoaded() {
+    return new Promise((resolve, reject) => {
+      if (window.jspdf?.jsPDF) return resolve(true);
 
-    const BRAND = { r: 161, g: 113, b: 90 };
-    const PAGE_W = doc.internal.pageSize.getWidth();
-    const PAGE_H = doc.internal.pageSize.getHeight();
-    const MARGIN_X = 18, MARGIN_TOP = 18, MARGIN_BOTTOM = 18;
-    const LINE_H = 5;
-    const maxTextW = PAGE_W - (MARGIN_X * 2);
+      // already injecting?
+      if (document.querySelector('script[data-womondo-jspdf="1"]')) {
+        // wait a moment
+        const t0 = Date.now();
+        const timer = setInterval(() => {
+          if (window.jspdf?.jsPDF) { clearInterval(timer); resolve(true); }
+          else if (Date.now() - t0 > 8000) { clearInterval(timer); reject(new Error('jsPDF load timeout')); }
+        }, 100);
+        return;
+      }
 
-    const setBrand = () => doc.setTextColor(BRAND.r, BRAND.g, BRAND.b);
-    const setInk = () => doc.setTextColor(0, 0, 0);
+      const s = document.createElement('script');
+      s.src = JSPDF_URL;
+      s.async = true;
+      s.defer = true;
+      s.setAttribute('data-womondo-jspdf', '1');
+      s.onload = () => window.jspdf?.jsPDF ? resolve(true) : reject(new Error('jsPDF loaded but window.jspdf.jsPDF missing'));
+      s.onerror = () => reject(new Error('Failed to load jsPDF'));
+      document.head.appendChild(s);
+    });
+  }
 
-    function ensureSpace(mmNeeded, y) {
-      const bottom = PAGE_H - MARGIN_BOTTOM;
-      if (y + mmNeeded > bottom) { doc.addPage(); return MARGIN_TOP; }
-      return y;
-    }
-
-    function hr(y) {
-      doc.setDrawColor(220, 220, 220);
-      doc.setLineWidth(0.3);
-      doc.line(MARGIN_X, y, PAGE_W - MARGIN_X, y);
-      return y + 6;
-    }
-
-    function textWrapped(str, x, y, w, fontSize = 11, bold = false) {
-      doc.setFont('helvetica', bold ? 'bold' : 'normal');
-      doc.setFontSize(fontSize);
-      const lines = doc.splitTextToSize(String(str || ''), w);
-      doc.text(lines, x, y);
-      return y + (lines.length * LINE_H);
-    }
-
-    // ---- Logo (optional)
-    let y = MARGIN_TOP;
+  // =============================
+  // PDF generator (STYLED + WRAP + MULTI-PAGE) — GROSS ONLY
+  // =============================
+  async function generatePDF() {
     try {
-      const logoUrl = "https://cdn.prod.website-files.com/688c97f5afd8282a32cb8652/689db2e327a5cb69f7e162cb_Womondo%20logo%20BY%20black.svg";
-      const resp = await fetch(logoUrl, { cache: 'no-store' });
-      if (!resp.ok) throw new Error(`Logo HTTP ${resp.status}`);
-      const svg = await resp.text();
+      if (!selectedModel) { alert('Please select a model first!'); return; }
 
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-      const blobUrl = URL.createObjectURL(blob);
+      await ensureJsPdfLoaded();
+      const { jsPDF } = window.jspdf;
 
-      const imgDataUrl = await new Promise((resolve, reject) => {
-        const image = new Image();
-        image.onload = () => {
-          canvas.width = image.width;
-          canvas.height = image.height;
-          ctx.drawImage(image, 0, 0);
-          URL.revokeObjectURL(blobUrl);
-          resolve(canvas.toDataURL("image/png"));
-        };
-        image.onerror = reject;
-        image.src = blobUrl;
-      });
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
-      const logoW = 55;
-      const logoH = (canvas.height / canvas.width) * logoW;
-      doc.addImage(imgDataUrl, "PNG", (PAGE_W - logoW) / 2, y, logoW, logoH);
-      y += logoH + 8;
-    } catch (e) {
-      // ok to continue without logo
-    }
+      const BRAND = { r: 161, g: 113, b: 90 };
+      const PAGE_W = doc.internal.pageSize.getWidth();
+      const PAGE_H = doc.internal.pageSize.getHeight();
+      const MARGIN_X = 18, MARGIN_TOP = 18, MARGIN_BOTTOM = 18;
+      const LINE_H = 5;
+      const maxTextW = PAGE_W - (MARGIN_X * 2);
 
-    // ---- Title
-    y = ensureSpace(18, y);
-    setBrand();
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.text("CAMPER VAN CONFIGURATION", PAGE_W / 2, y, { align: "center" });
-    y += 8;
+      const setBrand = () => doc.setTextColor(BRAND.r, BRAND.g, BRAND.b);
+      const setInk = () => doc.setTextColor(0, 0, 0);
 
-    y = hr(y);
+      function ensureSpace(mmNeeded, y) {
+        const bottom = PAGE_H - MARGIN_BOTTOM;
+        if (y + mmNeeded > bottom) { doc.addPage(); return MARGIN_TOP; }
+        return y;
+      }
 
-    // ---- Meta
-    setInk();
-    y = textWrapped(`Date: ${new Date().toLocaleDateString('de-DE')}`, MARGIN_X, y, maxTextW, 11, false);
+      function hr(y) {
+        doc.setDrawColor(220, 220, 220);
+        doc.setLineWidth(0.3);
+        doc.line(MARGIN_X, y, PAGE_W - MARGIN_X, y);
+        return y + 6;
+      }
 
-    const countryLabel = (getCountryLabelFromUI?.() || currentCountry || '').trim();
-    if (countryLabel) y = textWrapped(`Country: ${countryLabel}`, MARGIN_X, y, maxTextW, 11, false);
+      function textWrapped(str, x, y, w, fontSize = 11, bold = false) {
+        doc.setFont('helvetica', bold ? 'bold' : 'normal');
+        doc.setFontSize(fontSize);
+        const lines = doc.splitTextToSize(String(str || ''), w);
+        doc.text(lines, x, y);
+        return y + (lines.length * LINE_H);
+      }
 
-    y += 2;
-    y = hr(y);
+      // ---- Logo (optional) - keep optional & safe
+      let y = MARGIN_TOP;
+      try {
+        const logoUrl = "https://cdn.prod.website-files.com/688c97f5afd8282a32cb8652/689db2e327a5cb69f7e162cb_Womondo%20logo%20BY%20black.svg";
+        const resp = await fetch(logoUrl, { cache: 'no-store' });
+        if (!resp.ok) throw new Error(`Logo HTTP ${resp.status}`);
+        const svg = await resp.text();
 
-    // ---- Model
-    y = ensureSpace(20, y);
-    setInk();
-    y = textWrapped(`Model: ${selectedModel}`, MARGIN_X, y, maxTextW, 12, true);
-    y = textWrapped(`Base Price (gross): ${formatEuro(baseTotalGross)}`, MARGIN_X, y, maxTextW, 11, false);
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+        const blobUrl = URL.createObjectURL(blob);
 
-    // ---- Equipment
-    y += 2;
-    y = ensureSpace(14, y);
-    setBrand();
-    y = textWrapped("Selected Equipment", MARGIN_X, y, maxTextW, 12, true);
-    setInk();
+        const imgDataUrl = await new Promise((resolve, reject) => {
+          const image = new Image();
+          image.crossOrigin = 'anonymous';
+          image.onload = () => {
+            canvas.width = image.width || 600;
+            canvas.height = image.height || 200;
+            ctx.drawImage(image, 0, 0);
+            URL.revokeObjectURL(blobUrl);
+            resolve(canvas.toDataURL("image/png"));
+          };
+          image.onerror = reject;
+          image.src = blobUrl;
+        });
 
-    const items = Object.entries(selectedItems)
-      .filter(([_, item]) => item.row !== 0)
-      .sort((a, b) => a[1].row - b[1].row);
+        const logoW = 55;
+        const logoH = (canvas.height / canvas.width) * logoW;
+        doc.addImage(imgDataUrl, "PNG", (PAGE_W - logoW) / 2, y, logoW, logoH);
+        y += logoH + 8;
+      } catch (e) {
+        // ok to continue without logo
+      }
 
-    if (!items.length) {
-      y = textWrapped("— No equipment selected —", MARGIN_X, y, maxTextW, 11, false);
-    } else {
-      items.forEach(([key, item]) => {
-        let gross = item.priceGross || 0;
-        let label = item.title || 'Item';
+      // ---- Title
+      y = ensureSpace(18, y);
+      setBrand();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text("CAMPER VAN CONFIGURATION", PAGE_W / 2, y, { align: "center" });
+      y += 8;
 
-        if (selectedSubOptions[key]?.title) {
-          label += ` — ${selectedSubOptions[key].title}`;
-          gross += selectedSubOptions[key].priceGross || 0;
-        }
+      y = hr(y);
 
-        y = ensureSpace(10, y);
-        y = textWrapped(`• ${label}`, MARGIN_X, y, maxTextW - 35, 11, false);
+      // ---- Meta
+      setInk();
+      y = textWrapped(`Date: ${new Date().toLocaleDateString('de-DE')}`, MARGIN_X, y, maxTextW, 11, false);
 
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(11);
-        doc.text(`${formatEuro(gross)}`, PAGE_W - MARGIN_X, y - LINE_H, { align: 'right' });
-      });
-    }
+      const countryLabel = (getCountryLabelFromUI() || currentCountry || '').trim();
+      if (countryLabel) y = textWrapped(`Country: ${countryLabel}`, MARGIN_X, y, maxTextW, 11, false);
 
-    // ---- Fees
-    if (autoFees && Object.keys(autoFees).length) {
+      y += 2;
+      y = hr(y);
+
+      // ---- Model
+      y = ensureSpace(20, y);
+      setInk();
+      y = textWrapped(`Model: ${selectedModel}`, MARGIN_X, y, maxTextW, 12, true);
+      y = textWrapped(`Base Price (gross): ${formatEuro(baseTotalGross)}`, MARGIN_X, y, maxTextW, 11, false);
+
+      // ---- Equipment
       y += 2;
       y = ensureSpace(14, y);
       setBrand();
-      y = textWrapped("Fees", MARGIN_X, y, maxTextW, 12, true);
+      y = textWrapped("Selected Equipment", MARGIN_X, y, maxTextW, 12, true);
       setInk();
 
-      Object.values(autoFees).forEach(fee => {
-        const gross = fee.priceGross || 0;
-        y = ensureSpace(10, y);
-        y = textWrapped(`• ${fee.name || 'Fee'}`, MARGIN_X, y, maxTextW - 35, 11, false);
-        doc.text(`${formatEuro(gross)}`, PAGE_W - MARGIN_X, y - LINE_H, { align: 'right' });
-      });
-    }
+      const items = Object.entries(selectedItems)
+        .filter(([_, item]) => item.row !== 0)
+        .sort((a, b) => a[1].row - b[1].row);
 
-    // ---- Extras
-    if (window.selectedExtras && Object.keys(window.selectedExtras).length) {
-      y += 2;
-      y = ensureSpace(14, y);
+      if (!items.length) {
+        y = textWrapped("— No equipment selected —", MARGIN_X, y, maxTextW, 11, false);
+      } else {
+        items.forEach(([key, item]) => {
+          let gross = item.priceGross || 0;
+          let label = item.title || 'Item';
+
+          if (selectedSubOptions[key]?.title) {
+            label += ` — ${selectedSubOptions[key].title}`;
+            gross += selectedSubOptions[key].priceGross || 0;
+          }
+
+          y = ensureSpace(10, y);
+          y = textWrapped(`• ${label}`, MARGIN_X, y, maxTextW - 35, 11, false);
+
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(11);
+          doc.text(`${formatEuro(gross)}`, PAGE_W - MARGIN_X, y - LINE_H, { align: 'right' });
+        });
+      }
+
+      // ---- Fees
+      if (autoFees && Object.keys(autoFees).length) {
+        y += 2;
+        y = ensureSpace(14, y);
+        setBrand();
+        y = textWrapped("Fees", MARGIN_X, y, maxTextW, 12, true);
+        setInk();
+
+        Object.values(autoFees).forEach(fee => {
+          const gross = fee.priceGross || 0;
+          y = ensureSpace(10, y);
+          y = textWrapped(`• ${fee.name || 'Fee'}`, MARGIN_X, y, maxTextW - 35, 11, false);
+          doc.text(`${formatEuro(gross)}`, PAGE_W - MARGIN_X, y - LINE_H, { align: 'right' });
+        });
+      }
+
+      // ---- Extras
+      if (window.selectedExtras && Object.keys(window.selectedExtras).length) {
+        y += 2;
+        y = ensureSpace(14, y);
+        setBrand();
+        y = textWrapped("Special Extras", MARGIN_X, y, maxTextW, 12, true);
+        setInk();
+
+        Object.values(window.selectedExtras).forEach(ex => {
+          const gross = ex.priceGross || 0;
+          const name = ex.name || 'Extra';
+          y = ensureSpace(10, y);
+          y = textWrapped(`• ${name}`, MARGIN_X, y, maxTextW - 35, 11, false);
+          doc.text(`${formatEuro(gross)}`, PAGE_W - MARGIN_X, y - LINE_H, { align: 'right' });
+        });
+      }
+
+      // ---- Total
+      y += 6;
+      y = hr(y);
+      y = ensureSpace(18, y);
+
       setBrand();
-      y = textWrapped("Special Extras", MARGIN_X, y, maxTextW, 12, true);
+      y = textWrapped("Price Summary", MARGIN_X, y, maxTextW, 12, true);
       setInk();
 
-      Object.values(window.selectedExtras).forEach(ex => {
-        const gross = ex.priceGross || 0;
-        const name = ex.name || 'Extra';
-        y = ensureSpace(10, y);
-        y = textWrapped(`• ${name}`, MARGIN_X, y, maxTextW - 35, 11, false);
-        doc.text(`${formatEuro(gross)}`, PAGE_W - MARGIN_X, y - LINE_H, { align: 'right' });
-      });
+      const totalGross = calculateTotal();
+      y = textWrapped(`TOTAL (incl. VAT): ${formatEuro(totalGross)}`, MARGIN_X, y, maxTextW, 12, true);
+
+      // ---- Footer
+      const footerText =
+        "ROBETA d.o.o., Pohorska cesta 6B, 2380 Slovenj Gradec, Slovenia, E: info@robetamobil.si, T: +386 40 866 280, S: www.robetamobil.si";
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      setBrand();
+      doc.text(footerText, PAGE_W / 2, PAGE_H - 10, { align: "center", maxWidth: PAGE_W - 20 });
+
+      doc.setProperties({ title: `Womondo ${selectedModel} Configuration` });
+      doc.save(`Womondo-${selectedModel.replace(/\s+/g, '-')}-Configuration.pdf`);
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      alert("Sorry — couldn't generate the PDF. Check the browser console for details.");
     }
-
-    // ---- Total
-    y += 6;
-    y = hr(y);
-    y = ensureSpace(18, y);
-
-    setBrand();
-    y = textWrapped("Price Summary", MARGIN_X, y, maxTextW, 12, true);
-    setInk();
-
-    const totalGross = calculateTotal(); // already gross
-    y = textWrapped(`TOTAL (incl. VAT): ${formatEuro(totalGross)}`, MARGIN_X, y, maxTextW, 12, true);
-
-    // ---- Footer
-    const footerText =
-      "ROBETA d.o.o., Pohorska cesta 6B, 2380 Slovenj Gradec, Slovenia, E: info@robetamobil.si, T: +386 40 866 280, S: www.robetamobil.si";
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    setBrand();
-    doc.text(footerText, PAGE_W / 2, PAGE_H - 10, { align: "center", maxWidth: PAGE_W - 20 });
-
-    doc.setProperties({ title: `Womondo ${selectedModel} Configuration` });
-    doc.save(`Womondo-${selectedModel.replace(/\s+/g, '-')}-Configuration.pdf`);
-  } catch (err) {
-    console.error("PDF generation failed:", err);
-    alert("Sorry — couldn't generate the PDF. Check the browser console for details.");
   }
-}
+
   // =============================
   // INIT
   // =============================
@@ -1472,16 +1497,28 @@ async function generatePDF() {
     initializeExtras();
     bindFormJsonOnlyWebhookAndFields();
 
-// PDF button (works also in Webflow SUCCESS)
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('.download-pdf-btn');
-  if (!btn) return;
+    // Expose for debugging + Webflow interactions
+    window.WOMONDO_generatePDF = generatePDF;
 
-  e.preventDefault();
-  e.stopPropagation();
-  generatePDF();
-}, true);
-    
+    // ✅ PDF button (works also in Webflow SUCCESS)
+    document.addEventListener('click', (e) => {
+      // primary selector
+      let btn = e.target.closest('.download-pdf-btn');
+
+      // fallback: any button/link that mentions "pdf"
+      if (!btn) {
+        const candidate = e.target.closest('a, button');
+        const txt = (candidate?.textContent || '').trim().toLowerCase();
+        if (candidate && txt.includes('pdf')) btn = candidate;
+      }
+
+      if (!btn) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      generatePDF();
+    }, true);
+
     syncAutoTransportFee();
     updateSelectedEquipment();
     calculateTotal();
@@ -1493,7 +1530,8 @@ document.addEventListener('click', (e) => {
       transportPrimary: TRANSPORT_PRIMARY,
       hasTransport: !!sheet.byCol.get(currentCountryColKey)?.map?.has(TRANSPORT_PRIMARY),
       transportValue: sheet.byCol.get(currentCountryColKey)?.map?.get(TRANSPORT_PRIMARY),
-      autoFees
+      autoFees,
+      jsPdfLoaded: !!window.jspdf?.jsPDF
     });
 
     log('READY ✅', window.WOMONDO_FINAL);
