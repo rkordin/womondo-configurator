@@ -10,8 +10,8 @@ const CSV_URL = CFG.csvUrl || '';
 const WEBHOOK_URL = CFG.webhookUrl || '';
 const DEBUG = !!CFG.debug;
 
-const TRANSPORT_PRIMARY = (CFG.transportCodePrimary || 'WOTRANS').toString().trim().toUpperCase();
-const TRANSPORT_FALLBACK = (CFG.transportCodeFallback || 'TRANS0A').toString().trim().toUpperCase();
+const TRANSPORT_PRIMARY = (CFG.transportCodePrimary || 'DO0101').toString().trim().toUpperCase();
+const TRANSPORT_FALLBACK = (CFG.transportCodeFallback || 'DO0101').toString().trim().toUpperCase();
 const TRANSPORT_TRIGGER_CODES = (CFG.transportTriggerCodes || ['LENG0L2','LENG0L3','LENG0L4'])
 .map(s => (s || '').toString().trim().toUpperCase());
 const TRANSPORT_LABEL = 'Transport and documents cost';
@@ -78,7 +78,6 @@ if (!s) return null;
 if (s.includes('€')) return null;
 if (/^\d+([.,]\d+)?$/.test(s)) return null;
 
-// IMPORTANT: allow codes with 0 inside
 const m = s.match(/[A-Z][A-Z0-9_]{3,}/);
 return m ? m[0] : null;
 }
@@ -124,7 +123,7 @@ headerRaw: [],
 headerUp: [],
 tableRows: [],
 idx: { code: -1, model: -1, trans: -1, engine: -1, brand: -1 },
-byCol: new Map() // colKey -> { colIndex, map(code->gross) }
+byCol: new Map()
 };
 
 function parseCSV(text) {
@@ -188,14 +187,13 @@ const H = up(h);
 if (colIndex === sheet.idx.code) return;
 if (META.has(H)) return;
 
-const colKey = normHeader(h); // e.g. "DE", "SI"
+const colKey = normHeader(h);
 const map = new Map();
 
 for (const r of sheet.tableRows) {
 const code = up(r[sheet.idx.code]);
 const gross = parseNumberLoose(r[colIndex]);
 
-// ✅ allow 0 values
 if (code && Number.isFinite(gross) && gross >= 0) map.set(code, gross);
 }
 
@@ -220,7 +218,6 @@ if (sheet.byCol.has(de)) return de;
 return sheet.byCol.keys().next().value || null;
 }
 
-// Step 1–2 price based on MODEL+TRANS+ENGINE
 function getConfigPrice(modelNum, trans, engine, colIndex) {
 const M = Number(modelNum);
 const T = up(trans);
@@ -241,7 +238,7 @@ return NaN;
 }
 
 // -----------------------------
-// CODE LOCKING (so switching country works)
+// CODE LOCKING
 // -----------------------------
 function lockCodesOnce() {
 document.querySelectorAll('.conf-grid-row .conf-card .conf-price').forEach(el => {
@@ -272,7 +269,7 @@ const code = extractCode(priceEl?.textContent || '');
 if (code) item.setAttribute('data-extra-code', code);
 });
 
-log('Code lock done ✅');
+log('Code lock done');
 }
 
 // -----------------------------
@@ -289,8 +286,8 @@ function setAddon(subCard, grossAddon) {
 if (!subCard) return;
 subCard.setAttribute('data-option-gross-base', String(grossAddon));
 const txt = '+' + formatEuro(grossAddon);
-subCard.querySelector('.option-price') && (subCard.querySelector('.option-price').textContent = txt);
-subCard.querySelector('.sub-option-price') && (subCard.querySelector('.sub-option-price').textContent = txt);
+if (subCard.querySelector('.option-price')) subCard.querySelector('.option-price').textContent = txt;
+if (subCard.querySelector('.sub-option-price')) subCard.querySelector('.sub-option-price').textContent = txt;
 }
 
 function applyStep1BasePrices(colIndex) {
@@ -354,12 +351,11 @@ if (!Number.isFinite(gross)) return;
 
 sub.setAttribute('data-option-gross-base', String(gross));
 const txt = '+' + formatEuro(gross);
-sub.querySelector('.option-price') && (sub.querySelector('.option-price').textContent = txt);
-sub.querySelector('.sub-option-price') && (sub.querySelector('.sub-option-price').textContent = txt);
+if (sub.querySelector('.option-price')) sub.querySelector('.option-price').textContent = txt;
+if (sub.querySelector('.sub-option-price')) sub.querySelector('.sub-option-price').textContent = txt;
 });
 });
 
-// extras
 document.querySelectorAll('.extra-item').forEach(item => {
 const code = extractCode(item.getAttribute('data-extra-code')) || extractCode(item.getAttribute('data-extra-price'));
 if (!code) return;
@@ -529,7 +525,6 @@ return;
 
 const gross = getAutoFeeGrossTryBoth(TRANSPORT_PRIMARY, TRANSPORT_FALLBACK);
 
-// store under primary for consistency (code we will send prefers primary if it exists)
 autoFees[TRANSPORT_PRIMARY] = {
 name: TRANSPORT_LABEL,
 code: TRANSPORT_PRIMARY,
@@ -824,9 +819,7 @@ return grossTotal;
 }
 
 // -----------------------------
-// PDF (still works if you later want to call it)
-// NOTE: we are NOT binding PDF to the download button here,
-// because Webflow uses that button to open the form modal.
+// PDF
 // -----------------------------
 async function generatePDF() {
 if (!window.jspdf?.jsPDF) {
@@ -980,7 +973,7 @@ return null;
 const CHASSIS_REMAP = {
 FIAT:    { DRIVE: 'CH0775',  TECH: 'CH0774',  STYLE_L3L4: 'CH0776',  STYLE_L2: 'CH0777' },
 CITROEN: { DRIVE: 'CH0778',  TECH: 'CH0779',  STYLE_L3L4: 'CH0780',  STYLE_L2: 'CH0781' },
-OPEL:    { DRIVE: 'CH0782',  TECH: 'CH0783', STYLE_L3L4: 'CH0784',  STYLE_L2: 'CH0785' }
+OPEL:    { DRIVE: 'CH0782',  TECH: 'CH0783',  STYLE_L3L4: 'CH0784',  STYLE_L2: 'CH0785' }
 };
 
 function chassisTypeFromCode(code) {
@@ -1076,7 +1069,6 @@ extractCode(item.querySelector('.extra-price')?.textContent || '');
 if (code) items.push({ step: 'EXTRA', title: name, code, qty: 1 });
 });
 
-// Auto transport fee: send the code that actually exists in sheet
 if (autoFees && autoFees[TRANSPORT_PRIMARY]) {
 const map = getCodeMapForCurrentCountry();
 const primaryExists = map && map.has(TRANSPORT_PRIMARY);
@@ -1088,30 +1080,22 @@ return items;
 }
 
 function buildPayload() {
-// ✅ We keep the function name buildPayload()
-// so you DON'T need to change any other code.
-// It will now return ONLY MO codes + a human note.
-
 const modelNum = getSelectedModelNumberOrFallback();
 const brandKey = detectBrandKeyFromUI();
 const { trans, engine } = detectTransEngineFromUI();
 
 const baseMoCode = getBaseMoCode(modelNum, brandKey, trans, engine);
 
-// machine list (codes)
 const items = collectSelectedItemsCodes();
 
-// remap chassis in Step 3
 items.forEach(it => { if (it.step === 3) it.code = remapChassisCode(it.code, brandKey, modelNum); });
 
-// add color as code (Step 5)
 const colorName = getSelectedColorNameFromUI();
 if (colorName) {
 const colorCode = remapColorCodeByBrand(brandKey, colorName);
 if (colorCode) items.push({ step: 5, title: `Colour: ${colorName}`, code: colorCode, qty: 1 });
 }
 
-// ✅ MO_CODES array (deduped)
 const rawCodes = [
 baseMoCode,
 ...items.map(i => i.code)
@@ -1122,20 +1106,14 @@ baseMoCode,
 const seen = new Set();
 const mo_codes = rawCodes.filter(c => (seen.has(c) ? false : (seen.add(c), true)));
 
-// ✅ NOTE text (human-readable names + prices)
 const note = buildSummaryText();
-
 const total_gross = calculateTotal();
 
-return {
-mo_codes,      // <-- ONLY codes go here
-note,          // <-- “comment” for humans (names + prices)
-total_gross    // <-- numeric total (optional, but useful)
-};
+return { mo_codes, note, total_gross };
 }
 
 // -----------------------------
-// WEBHOOK SEND (no local download)
+// WEBHOOK
 // -----------------------------
 async function postWebhook(payload) {
 if (!WEBHOOK_URL) {
@@ -1143,16 +1121,13 @@ console.warn('[WOMONDO] Missing webhookUrl in window.WOMONDO_CFG.webhookUrl');
 return { ok: false, error: 'Missing webhookUrl' };
 }
 
-// Prefer sendBeacon if available (best with form submits / navigation)
 try {
 const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
 if (navigator.sendBeacon && navigator.sendBeacon(WEBHOOK_URL, blob)) {
-log('Webhook sent via sendBeacon ✅');
+log('Webhook sent via sendBeacon');
 return { ok: true, via: 'beacon' };
 }
-} catch (e) {
-// continue to fetch
-}
+} catch (e) { /* continue to fetch */ }
 
 try {
 const res = await fetch(WEBHOOK_URL, {
@@ -1170,28 +1145,9 @@ return { ok: false, error: String(err) };
 }
 }
 
-function readFormFields(formEl) {
-const data = {};
-if (!formEl) return data;
-
-// capture all inputs/selects/textareas
-const fields = formEl.querySelectorAll('input, select, textarea');
-fields.forEach(el => {
-const key = el.name || el.id || el.getAttribute('data-name') || '';
-if (!key) return;
-
-if (el.type === 'checkbox') data[key] = !!el.checked;
-else data[key] = (el.value ?? '').toString().trim();
-});
-
-return data;
-}
-// =============================
-// ✅ WRITE SUMMARY + PAYLOAD_JSON TO FORM (same moment)
-// =============================
-
-// IMPORTANT: this must match the *Webflow field NAME* of your textarea
-// From your Pipedream dump it looks like it is exactly: "textarea field"
+// -----------------------------
+// FORM HELPERS
+// -----------------------------
 const SUMMARY_TEXTAREA_NAME = 'textarea-field';
 
 function formatDateDE(d = new Date()) {
@@ -1215,7 +1171,6 @@ lines.push(`MODEL: ${selectedModel || `Womondo ${getSelectedModelNumberOrFallbac
 lines.push('SELECTED EQUIPMENT:');
 lines.push('─────────────────────────────');
 
-// Selected items (excluding row 0 model)
 Object.entries(selectedItems)
 .filter(([_, item]) => item.row !== 0)
 .sort((a, b) => a[1].row - b[1].row)
@@ -1231,14 +1186,12 @@ gross += selectedSubOptions[key].priceGross || 0;
 lines.push(`• ${title}: ${formatEuro(gross)}`);
 });
 
-// Fees
 if (autoFees && Object.keys(autoFees).length) {
 Object.values(autoFees).forEach(fee => {
 lines.push(`• ${fee.name}: ${formatEuro(fee.priceGross || 0)}`);
 });
 }
 
-// Extras
 if (window.selectedExtras && Object.keys(window.selectedExtras).length) {
 lines.push('SPECIAL EXTRAS:');
 lines.push('─────────────────────────────');
@@ -1262,7 +1215,6 @@ return form.querySelector(`[name="${CSS.escape(name)}"]`) || form.querySelector(
 function setFieldValue(form, name, value) {
 let el = getFieldByNameOrId(form, name);
 
-// ✅ auto-create hidden inputs if missing
 if (!el) {
 el = document.createElement('input');
 el.type = 'hidden';
@@ -1276,10 +1228,6 @@ el.removeAttribute('required');
 el.value = value == null ? '' : String(value);
 }
 
-// This writes BOTH:
-// 1) textarea summary
-// 2) hidden field payload_json
-// in the SAME function call
 function writeSummaryAndPayloadToForm(form) {
 try {
 syncAutoTransportFee();
@@ -1289,61 +1237,55 @@ const total = calculateTotal();
 const payload = buildPayload();
 const summary = buildSummaryText();
 
-// ✅ write into textarea (must match real field NAME)
 const summaryTextarea = getFieldByNameOrId(form, SUMMARY_TEXTAREA_NAME);
 if (summaryTextarea && summaryTextarea.tagName.toLowerCase() === 'textarea') {
 summaryTextarea.value = summary;
 } else {
-      // fallback: write into first textarea if the name changed
 const anyTextarea = form.querySelector('textarea');
 if (anyTextarea) anyTextarea.value = summary;
 }
 
-// ✅ write hidden fields (these will be submitted)
 setFieldValue(form, 'payload_json', JSON.stringify(payload));
 setFieldValue(form, 'country_col', currentCountryColKey || '');
 setFieldValue(form, 'total_gross', payload?.total_gross ?? total ?? '');
-    setFieldValue(form, 'payload_json', JSON.stringify(payload));
-    setFieldValue(form, 'country_col', currentCountryColKey || '');
-    setFieldValue(form, 'total_gross', payload?.total_gross ?? total ?? '');
 
-log('Summary + payload_json written ✅');
+log('Summary + payload_json written');
 } catch (e) {
 console.warn('[WOMONDO] writeSummaryAndPayloadToForm failed', e);
 }
 }
+
 function normalizePayload(raw, form) {
-  if (raw && Array.isArray(raw.mo_codes)) {
-    if (!raw.note) raw.note = (form?.querySelector(`[name="${CSS.escape(SUMMARY_TEXTAREA_NAME)}"]`)?.value || '').trim();
-    if (raw.total_gross == null) raw.total_gross = null;
-    return raw;
-  }
-
-  const baseCode = raw?.base?.moCode || raw?.base?.mo_code || raw?.base?.MO_CODE || null;
-
-  const itemCodes = Array.isArray(raw?.items)
-    ? raw.items.map(x => x?.code).filter(Boolean)
-    : [];
-
-  const rawCodes = [baseCode, ...itemCodes]
-    .filter(Boolean)
-    .map(c => String(c).trim().toUpperCase());
-
-  const seen = new Set();
-  const mo_codes = rawCodes.filter(c => (seen.has(c) ? false : (seen.add(c), true)));
-
-const note = (form?.querySelector(`[name="${CSS.escape(SUMMARY_TEXTAREA_NAME)}"]`)?.value || '').trim();
-  
-  const total_gross =
-    raw?.totals?.totalGross ??
-    raw?.totals?.total_gross ??
-    raw?.totals?.grossTotal ??
-    null;
-
-  return { mo_codes, note, total_gross };
+if (raw && Array.isArray(raw.mo_codes)) {
+if (!raw.note) raw.note = (form?.querySelector(`[name="${CSS.escape(SUMMARY_TEXTAREA_NAME)}"]`)?.value || '').trim();
+if (raw.total_gross == null) raw.total_gross = null;
+return raw;
 }
 
-// Bind early events so Webflow captures the values
+const baseCode = raw?.base?.moCode || raw?.base?.mo_code || raw?.base?.MO_CODE || null;
+
+const itemCodes = Array.isArray(raw?.items)
+? raw.items.map(x => x?.code).filter(Boolean)
+: [];
+
+const rawCodes = [baseCode, ...itemCodes]
+.filter(Boolean)
+.map(c => String(c).trim().toUpperCase());
+
+const seen = new Set();
+const mo_codes = rawCodes.filter(c => (seen.has(c) ? false : (seen.add(c), true)));
+
+const note = (form?.querySelector(`[name="${CSS.escape(SUMMARY_TEXTAREA_NAME)}"]`)?.value || '').trim();
+
+const total_gross =
+raw?.totals?.totalGross ??
+raw?.totals?.total_gross ??
+raw?.totals?.grossTotal ??
+null;
+
+return { mo_codes, note, total_gross };
+}
+
 function bindFormJsonOnlyWebhookAndFields() {
 const wrapper = document.querySelector('.conf-email-form');
 if (!wrapper) { console.warn('[WOMONDO] No .conf-email-form found'); return; }
@@ -1354,7 +1296,6 @@ if (!form) { console.warn('[WOMONDO] No <form> inside .conf-email-form'); return
 if (form.getAttribute('data-womondo-bound') === '1') return;
 form.setAttribute('data-womondo-bound', '1');
 
-// ensure hidden fields exist INSIDE this form
 function ensureHidden(name) {
 let el = form.querySelector(`[name="${CSS.escape(name)}"]`);
 if (!el) {
@@ -1370,7 +1311,7 @@ return el;
 }
 
 const payloadField = ensureHidden('payload_json');
-  ensureHidden('payload_full');
+ensureHidden('payload_full');
 ensureHidden('country_col');
 ensureHidden('total_gross');
 
@@ -1378,40 +1319,31 @@ let _sent = false;
 
 function fire() {
 try {
-      // write summary textarea + payload_json + country_col + total_gross
 writeSummaryAndPayloadToForm(form);
 
-      // send ONLY JSON to webhook (do NOT stop form submit)
 if (!_sent) {
 _sent = true;
-        const payload = JSON.parse(payloadField.value || '{}');
 
-        const raw = JSON.parse(payloadField.value || '{}');
-        setFieldValue(form, 'payload_full', JSON.stringify(raw));
+const raw = JSON.parse(payloadField.value || '{}');
+setFieldValue(form, 'payload_full', JSON.stringify(raw));
 
-        const payload = normalizePayload(raw, form);
+const payload = normalizePayload(raw, form);
 
-        // ✅ overwrite payload_json so Webflow submit gets normalized shape
-        payloadField.value = JSON.stringify(payload);
-
-        setFieldValue(form, 'total_gross', payload?.total_gross ?? '');
-        setFieldValue(form, 'country_col', currentCountryColKey || '');
+payloadField.value = JSON.stringify(payload);
+setFieldValue(form, 'total_gross', payload?.total_gross ?? '');
+setFieldValue(form, 'country_col', currentCountryColKey || '');
 
 postWebhook(payload).catch(err => console.warn('[WOMONDO] webhook send failed', err));
 
 setTimeout(() => { _sent = false; }, 2500);
 }
 
-      console.log('[WOMONDO] fire() ok, payload_json length:',
-        (payloadField.value || '').length
-      );
-      console.log('[WOMONDO] fire() ok, payload_json length:', (payloadField.value || '').length);
+log('fire() ok, payload_json length:', (payloadField.value || '').length);
 } catch (e) {
 console.warn('[WOMONDO] fire() failed', e);
 }
 }
 
-  // 🔥 Critical: capture pointerdown/click even if submit is blocked by validation
 function isSubmitishTarget(t) {
 return !!t.closest('.conf-email-form [type="submit"], .conf-email-form .w-button');
 }
@@ -1424,17 +1356,15 @@ document.addEventListener('click', (e) => {
 if (isSubmitishTarget(e.target)) fire();
 }, true);
 
-  // backup: in case submit does fire
 form.addEventListener('submit', fire, true);
 
-console.log('[WOMONDO] bindFormJsonOnlyWebhookAndFields ✅');
+log('bindFormJsonOnlyWebhookAndFields done');
 }
 
 // -----------------------------
 // INIT
 // -----------------------------
 async function initialize() {
-// normalize a label (optional)
 document.querySelectorAll('.card-h1-header, h1').forEach(header => {
 if ((header.textContent || '').toLowerCase().includes('off grid pack')) header.textContent = 'OFF GRID PACK';
 });
@@ -1448,7 +1378,6 @@ applyPricesForCountry(detectedCountry, forcedCol || null);
 const dropdownList = document.querySelector('.country-selector-dropdown .w-dropdown-list');
 if (dropdownList) dropdownList.addEventListener('click', handleCountryClick);
 
-// bind card clicks
 getAllRows().forEach((row, rowIndex) => {
 row.querySelectorAll('.conf-card').forEach((card, cardIndex) => {
 const header = card.querySelector('.conf-card-header');
@@ -1460,7 +1389,6 @@ handleCardClick(card, rowIndex, cardIndex);
 });
 });
 
-// bind sub cards + colors
 document.addEventListener('click', (e) => {
 const colorTarget = e.target.closest('.color-swatch, .conf-color-card');
 if (colorTarget) {
@@ -1493,25 +1421,18 @@ return;
 
 initializeExtras();
 
-// ✅ webhook binding to SEND button (form submit)
 bindFormJsonOnlyWebhookAndFields();
 
-// final sync
 syncAutoTransportFee();
 updateSelectedEquipment();
 calculateTotal();
 
-// expose pdf generator if you ever want to call it after submit
 window.WOMONDO_generatePDF = generatePDF;
 
-log('READY ✅', window.WOMONDO_FINAL);
+log('READY', window.WOMONDO_FINAL);
 }
 
-// Run
 document.addEventListener('DOMContentLoaded', () => {
 initialize().catch(err => console.error('[WOMONDO] init failed:', err));
-
-// =========================
-
 });
 })();
