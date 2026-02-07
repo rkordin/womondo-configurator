@@ -1392,61 +1392,52 @@ window.WOMONDO_generatePDF = generatePDF;
 // INIT
 // =============================
 async function initialize() {
-lockCodesOnce();
-await loadSheet();
+  lockCodesOnce();
+  await loadSheet();
 
-const { detectedCountry, forcedCol } = readInitialCountryAndCol();
-applyPricesForCountry(detectedCountry, forcedCol || null);
+  const { detectedCountry, forcedCol } = readInitialCountryAndCol();
+  applyPricesForCountry(detectedCountry, forcedCol || null);
 
-const dropdownList = document.querySelector('.country-selector-dropdown .w-dropdown-list');
-if (dropdownList) dropdownList.addEventListener('click', handleCountryClick);
+  const dropdownList = document.querySelector('.country-selector-dropdown .w-dropdown-list');
+  if (dropdownList) dropdownList.addEventListener('click', handleCountryClick);
 
-// bind cards / subs / colors (your existing block)
-initializeExtras();
-bindFormJsonOnlyWebhookAndFields();
+  // bind cards / subs / colors (your existing block)
+  initializeExtras();
+  bindFormJsonOnlyWebhookAndFields();
 
-// ✅ PDF button bind (one-time) + small delay + anti-double-click
-(function bindPdfButtonOnce() {
-  if (document.documentElement.dataset.womondoPdfBound === "1") return;
-  document.documentElement.dataset.womondoPdfBound = "1";
+  // ✅ PDF button now ONLY generates PDF (no JSON) + delay + anti-double-click
+  const pdfButton = document.querySelector('.download-pdf-btn');
+  if (pdfButton && !pdfButton.dataset.pdfBound) {
+    pdfButton.dataset.pdfBound = "1";
 
-  let isGenerating = false;
+    let isGenerating = false;
 
-  document.addEventListener(
-    "click",
-    async (e) => {
-      const btn = e.target.closest(".download-pdf-btn");
-      if (!btn) return;
-
+    pdfButton.addEventListener('click', async function (e) {
       e.preventDefault();
-      e.stopImmediatePropagation();
+      e.stopPropagation();
 
       if (isGenerating) return;
       isGenerating = true;
 
-      // Optional: UI feedback
-      const oldText = btn.textContent;
-      btn.style.pointerEvents = "none";
-      btn.textContent = "Generating PDF…";
+      const oldText = pdfButton.textContent;
+      pdfButton.style.pointerEvents = "none";
+      pdfButton.textContent = "Generating PDF…";
 
       try {
-        // ✅ Small delay so UI/state updates + Webflow finishes any click animations
-        await new Promise((r) => setTimeout(r, 250));
-
-        // Generate
-        await window.WOMONDO_generatePDF();
+        await new Promise(r => setTimeout(r, 250));
+        await generatePDF();
       } catch (err) {
-        console.error("[WOMONDO] PDF button error:", err);
+        console.error('[WOMONDO] PDF generation failed:', err);
+        alert('PDF generation failed. Check console.');
       } finally {
-        // Optional: restore UI
-        btn.textContent = oldText;
-        btn.style.pointerEvents = "";
+        pdfButton.textContent = oldText;
+        pdfButton.style.pointerEvents = "";
         isGenerating = false;
       }
-    },
-    true
-  );
-})();
+    });
+  }
+
+  // init fees + total
   syncAutoTransportFee();
   updateSelectedEquipment();
   calculateTotal();
@@ -1474,4 +1465,4 @@ if (document.readyState === "loading") {
   start();
 }
 
- })(); 
+ })();
