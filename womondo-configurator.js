@@ -1459,39 +1459,55 @@ window.WOMONDO_generatePDF = generatePDF;
     // Expose for debugging + Webflow interactions
     window.WOMONDO_generatePDF = generatePDF;
 
-// ✅ PDF button (one-time bind, also works in Webflow SUCCESS)
+// ✅ expose PDF globally (so console + click can call it)
+window.WOMONDO_generatePDF = generatePDF;
+
+// ✅ PDF button (one-time bind, Webflow success-safe)
 if (!document.documentElement.dataset.womondoPdfBound) {
   document.documentElement.dataset.womondoPdfBound = "1";
 
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.download-pdf-btn');
-    if (!btn) return;
+  document.addEventListener(
+    "click",
+    (e) => {
+      const btn = e.target.closest(".download-pdf-btn");
+      if (!btn) return;
 
-    e.preventDefault();
-    e.stopImmediatePropagation(); // ✅ stronger than stopPropagation
-    generatePDF();
-  }, true);
+      e.preventDefault();
+      e.stopImmediatePropagation(); // ✅ stronger than stopPropagation
+
+      // call the global (always available)
+      window.WOMONDO_generatePDF();
+    },
+    true
+  );
 }
 
-    syncAutoTransportFee();
-    updateSelectedEquipment();
-    calculateTotal();
+syncAutoTransportFee();
+updateSelectedEquipment();
+calculateTotal();
 
-    // quick state inspector
-    window.WOMONDO_getState = () => ({
-      currentCountry,
-      currentCountryColKey,
-      transportPrimary: TRANSPORT_PRIMARY,
-      hasTransport: !!sheet.byCol.get(currentCountryColKey)?.map?.has(TRANSPORT_PRIMARY),
-      transportValue: sheet.byCol.get(currentCountryColKey)?.map?.get(TRANSPORT_PRIMARY),
-      autoFees,
-      jsPdfLoaded: !!window.jspdf?.jsPDF
-    });
+// quick state inspector
+window.WOMONDO_getState = () => ({
+  currentCountry,
+  currentCountryColKey,
+  transportPrimary: TRANSPORT_PRIMARY,
+  hasTransport: !!sheet.byCol.get(currentCountryColKey)?.map?.has(TRANSPORT_PRIMARY),
+  transportValue: sheet.byCol.get(currentCountryColKey)?.map?.get(TRANSPORT_PRIMARY),
+  autoFees,
+  jsPdfLoaded: !!window.jspdf?.jsPDF,
+});
 
-    log('READY ✅', window.WOMONDO_FINAL);
-  }
+log("READY ✅", window.WOMONDO_FINAL);
+}
 
-  document.addEventListener('DOMContentLoaded', () => {
-    initialize().catch(err => console.error('[WOMONDO] init failed:', err));
-  });
+// ✅ Webflow-safe init (run immediately if DOM already loaded)
+function start() {
+  initialize().catch((err) => console.error("[WOMONDO] init failed:", err));
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", start);
+} else {
+  start();
+}
 })();
