@@ -1388,7 +1388,7 @@ const jsPDF = window.jspdf?.jsPDF || window.jspdf?.default || window.jsPDF;
 
 // ✅ expose PDF globally ONCE (console + click)
 window.WOMONDO_generatePDF = generatePDF;
-
+console.log("[WOMONDO] generatePDF exposed:", typeof window.WOMONDO_generatePDF);
 
 // =============================
 // INIT
