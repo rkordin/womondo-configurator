@@ -19,12 +19,6 @@
   // Webflow textarea field name (can override via CFG.summaryTextareaName)
   const SUMMARY_TEXTAREA_NAME = (CFG.summaryTextareaName || 'textarea-field').toString();
 
-  // Optional: jsPDF CDN (can override via CFG.jsPdfUrl)
-  const JSPDF_URL =
-    (CFG.jsPdfUrl || 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
-      .toString()
-      .trim();
-
   // Dropdown label -> sheet column header
   const COUNTRY_TO_SHEET_COL = {
     'GERMANY': 'DE', 'AUSTRIA': 'AT', 'BELGIUM': 'BE', 'BULGARIA': 'BG', 'CROATIA': 'HR', 'CYPRUS': 'CY',
