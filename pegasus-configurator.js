@@ -652,8 +652,9 @@ function injectStyles() {
 .pgc-form input::placeholder{color:#666 !important;-webkit-text-fill-color:#666 !important}
 .pgc-form select{appearance:none;-webkit-appearance:none}
 .pgc-form .field-email,.pgc-form .field-phone{display:contents}
-.pgc-form .field-country{flex:1;min-width:0}
-.pgc-form .field-country select{width:100%}
+.pgc-form .field-country{width:calc(50% - 6px);flex:none;min-width:0}
+.pgc-form .field-country select{width:100%;box-sizing:border-box}
+.pgc-form #ZIP-CODE{width:calc(50% - 6px) !important;flex:none !important}
 .pgc-form .field-email-msg,.pgc-form .field-phone-msg{margin-top:-8px;margin-bottom:8px;font-size:12px;line-height:1.3;color:#ff6b6b;display:none}
 .pgc-form .is-invalid{border-color:#ff6b6b !important}
 .pgc-form .pgc-textarea-visible{width:100%;min-height:120px;max-height:260px;resize:vertical;padding:12px 14px;border:2px solid #333;border-radius:8px;background:#1e1e1e;color:#aaa !important;-webkit-text-fill-color:#aaa !important;font-size:12px;line-height:1.5;margin-bottom:12px;box-sizing:border-box;font-family:monospace;cursor:default}
@@ -688,6 +689,7 @@ function injectStyles() {
 .pgc-nav-btns{width:100%;justify-content:stretch}
 .pgc-nav-btns .pgc-btn{flex:1}
 .pgc-form-row{flex-direction:column;gap:0}
+.pgc-form .field-country,.pgc-form #ZIP-CODE{width:100% !important}
 .pgc-country-select{width:100%;margin-bottom:8px}
 }
 `;
@@ -1037,7 +1039,7 @@ function renderForm() {
             </select>
             <input type="hidden" name="Country" id="Country" value="${esc(state.country)}" />
           </div>
-          <input type="text" name="ZIP CODE" id="ZIP-CODE" placeholder="Zip Code *" style="flex:1;min-width:0" required />
+          <input type="text" name="ZIP CODE" id="ZIP-CODE" placeholder="Zip Code *" required />
         </div>
 
         <div class="field-phone">
