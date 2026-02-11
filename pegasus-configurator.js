@@ -1015,19 +1015,15 @@ function renderForm() {
             action="${esc(HUBSPOT_FORM_URL)}"
             method="POST"
             enctype="multipart/form-data"
-            data-name="Womondo Configurator Dealer"
-            data-wf-hs-form="webflowHubSpotForm"
-            data-wf-page-id="69674f7a8346b86879ce8dbc"
-            data-wf-element-id="afad9089-6572-2c8c-7157-779d36f5a563"
             novalidate>
 
         <div class="pgc-form-row">
-          <input type="text" name="First Name" id="First-Name" placeholder="First name *" required data-wfhsfieldname="FormTextInput-firstname" />
-          <input type="text" name="Last Name" id="Last-Name" placeholder="Last name *" required data-wfhsfieldname="FormTextInput-lastname" />
+          <input type="text" name="First Name" id="First-Name" placeholder="First name *" required />
+          <input type="text" name="Last Name" id="Last-Name" placeholder="Last name *" required />
         </div>
 
         <div class="field-email">
-          <input type="email" name="Email" id="Email" placeholder="Email *" required inputmode="email" autocomplete="email" data-wfhsfieldname="FormTextInput-email" />
+          <input type="email" name="Email" id="Email" placeholder="Email *" required inputmode="email" autocomplete="email" />
           <div class="field-email-msg"></div>
         </div>
 
@@ -1037,23 +1033,23 @@ function renderForm() {
               <option value="" disabled>Select your country</option>
               ${euOpts}
             </select>
-            <input type="hidden" name="Country" id="Country" value="${esc(state.country)}" data-wfhsfieldname="FormTextInput-country" />
+            <input type="hidden" name="Country" id="Country" value="${esc(state.country)}" />
           </div>
-          <input type="text" name="ZIP CODE" id="ZIP-CODE" placeholder="Zip Code *" style="flex:1" required data-wfhsfieldname="FormTextInput-zip" />
+          <input type="text" name="ZIP CODE" id="ZIP-CODE" placeholder="Zip Code *" style="flex:1" required />
         </div>
 
         <div class="field-phone">
-          <input type="tel" name="Phone number" id="Phone-number" placeholder="Phone Number *" required inputmode="tel" value="${esc(dial)} " data-wfhsfieldname="FormTextInput-phone" />
+          <input type="tel" name="Phone number" id="Phone-number" placeholder="Phone Number *" required inputmode="tel" value="${esc(dial)} " />
           <div class="field-phone-msg"></div>
         </div>
 
         <!-- Configuration summary (visible, read-only) -->
         <span class="pgc-field-label">Customer's configuration and price</span>
-        <textarea name="textarea field" class="textarea-field pgc-textarea-visible" id="textarea-field" readonly data-wfhsfieldname="FormTextarea-customes_configuration_and_price">${esc(summaryText)}</textarea>
+        <textarea name="textarea field" class="textarea-field pgc-textarea-visible" id="textarea-field" readonly>${esc(summaryText)}</textarea>
 
         <!-- Assigned dealer (visible, read-only, auto-populated) -->
         <span class="pgc-field-label">Assigned dealer</span>
-        <input type="text" name="assigned dealer" id="assigned-dealer" class="pgc-dealer-field" value="" readonly placeholder="Will be auto-assigned based on your location" data-wfhsfieldname="FormTextInput-assigned_dealer" />
+        <input type="text" name="assigned dealer" id="assigned-dealer" class="pgc-dealer-field" value="" readonly placeholder="Will be auto-assigned based on your location" />
 
         <!-- HubSpot tracking (hidden) -->
         <input type="hidden" name="hutk" value="" />
@@ -1223,9 +1219,9 @@ function handleFormSubmit(form) {
   // ── 1) Bridge to native Webflow form & submit it ──
   bridgeAndSubmitWebflowForm(contact, summaryText, assignedDealer);
 
-  // ── 2) Direct HubSpot POST (backup) ──
-  submitToHubSpot(form).then(() => {
-    log('Direct HubSpot form submitted (backup)');
+  // ── 2) Direct HubSpot POST ──
+  submitToHubSpot(contact, summaryText, assignedDealer).then(() => {
+    log('Direct HubSpot form submitted');
   }).catch(err => {
     console.warn('[PEGASUS] Direct HubSpot submit error:', err);
   });
@@ -1319,9 +1315,30 @@ function fillAndSubmitForm(form, contact, summaryText, assignedDealer) {
   }, 200); // small delay to let dealer auto-assign finish
 }
 
-async function submitToHubSpot(form) {
+async function submitToHubSpot(contact, summaryText, assignedDealer) {
   try {
-    const formData = new FormData(form);
+    // Build form data with HubSpot field names
+    const formData = new FormData();
+    formData.append('firstname', contact.firstName);
+    formData.append('lastname', contact.lastName);
+    formData.append('email', contact.email);
+    formData.append('phone', contact.phone);
+    formData.append('country', contact.country);
+    formData.append('zip', contact.zip);
+    formData.append('customes_configuration_and_price', summaryText);
+    formData.append('assigned_dealer', assignedDealer);
+
+    // Consent fields
+    formData.append('895486508', '895486508');
+    // HubSpot tracking
+    formData.append('pageUri', window.location.href);
+    formData.append('pageName', document.title);
+    formData.append('pageId', '69674f7a8346b86879ce8dbc');
+    try {
+      const hutk = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('hubspotutk='));
+      if (hutk) formData.append('hutk', hutk.split('=')[1]);
+    } catch (_) {}
+
     const resp = await fetch(HUBSPOT_FORM_URL, {
       method: 'POST',
       body: formData,
