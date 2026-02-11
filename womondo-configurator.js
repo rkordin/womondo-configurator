@@ -1259,6 +1259,197 @@ log('bindFormJsonOnlyWebhookAndFields done');
 }
 
 // -----------------------------
+// PDF GENERATOR
+// -----------------------------
+async function generatePDF() {
+  try {
+    const jsPDF = window.jspdf && window.jspdf.jsPDF;
+    if (!jsPDF) {
+      console.error('[WOMONDO-PDF] jsPDF not loaded');
+      alert('PDF not available (jsPDF not loaded).');
+      return;
+    }
+
+    syncAutoTransportFee();
+    syncSelectedPricesFromDOM();
+    updateSelectedEquipment();
+    const totalGross = calculateTotal();
+
+    const modelLabel = selectedModel || ('Womondo ' + getSelectedModelNumberOrFallback());
+    const countryLabel = getCountryLabelFromUI();
+    const fmt = formatEuro;
+
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+    const BRAND = { r: 161, g: 113, b: 90 };
+    const PAGE_W = doc.internal.pageSize.getWidth();
+    const PAGE_H = doc.internal.pageSize.getHeight();
+    const MARGIN_X = 18, MARGIN_TOP = 18, MARGIN_BOTTOM = 18;
+    const LINE_H = 5;
+    const maxTextW = PAGE_W - (MARGIN_X * 2);
+
+    function setBrand() { doc.setTextColor(BRAND.r, BRAND.g, BRAND.b); }
+    function setInk()   { doc.setTextColor(0, 0, 0); }
+
+    function ensureSpace(mmNeeded, y) {
+      if (y + mmNeeded > PAGE_H - MARGIN_BOTTOM) { doc.addPage(); return MARGIN_TOP; }
+      return y;
+    }
+
+    function hr(y) {
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.3);
+      doc.line(MARGIN_X, y, PAGE_W - MARGIN_X, y);
+      return y + 6;
+    }
+
+    function textWrapped(str, x, y, w, fontSize, bold) {
+      fontSize = fontSize || 11;
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      doc.setFontSize(fontSize);
+      var lines = doc.splitTextToSize(String(str || ''), w);
+      doc.text(lines, x, y);
+      return y + (lines.length * LINE_H);
+    }
+
+    var y = MARGIN_TOP;
+
+    // Logo
+    try {
+      var logoPngUrl = 'https://cdn.prod.website-files.com/688c97f5afd8282a32cb8652/69875293a43d78238cf14721_Logo-womondo.png';
+      var resp = await fetch(logoPngUrl, { cache: 'no-store' });
+      if (resp.ok) {
+        var blob = await resp.blob();
+        var dataUrl = await new Promise(function(resolve, reject) {
+          var r = new FileReader();
+          r.onload = function() { resolve(r.result); };
+          r.onerror = reject;
+          r.readAsDataURL(blob);
+        });
+        var logoW = 55, logoH = 18;
+        doc.addImage(dataUrl, 'PNG', (PAGE_W - logoW) / 2, y, logoW, logoH);
+        y += logoH + 8;
+      }
+    } catch (e) { /* logo optional */ }
+
+    // Title
+    y = ensureSpace(18, y);
+    setBrand();
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text('CAMPER VAN CONFIGURATION', PAGE_W / 2, y, { align: 'center' });
+    y += 8;
+    y = hr(y);
+
+    // Meta
+    setInk();
+    y = textWrapped('Date: ' + new Date().toLocaleDateString('de-DE'), MARGIN_X, y, maxTextW, 11, false);
+    if (countryLabel) y = textWrapped('Country: ' + countryLabel, MARGIN_X, y, maxTextW, 11, false);
+    y += 2;
+    y = hr(y);
+
+    // Model
+    y = ensureSpace(20, y);
+    setInk();
+    y = textWrapped('Model: ' + modelLabel, MARGIN_X, y, maxTextW, 12, true);
+    y = textWrapped('Base Price (gross): ' + fmt(baseTotalGross || 0), MARGIN_X, y, maxTextW, 11, false);
+
+    // Equipment
+    y += 2;
+    y = ensureSpace(14, y);
+    setBrand();
+    y = textWrapped('Selected Equipment', MARGIN_X, y, maxTextW, 12, true);
+    setInk();
+
+    var items = Object.entries(selectedItems)
+      .filter(function(e) { return e[1].row !== 0; })
+      .sort(function(a, b) { return a[1].row - b[1].row; });
+
+    if (!items.length) {
+      y = textWrapped('— No equipment selected —', MARGIN_X, y, maxTextW, 11, false);
+    } else {
+      items.forEach(function(entry) {
+        var key = entry[0], item = entry[1];
+        var gross = item.priceGross || 0;
+        var label = item.title || 'Item';
+        if (selectedSubOptions[key] && selectedSubOptions[key].title) {
+          label += ' — ' + selectedSubOptions[key].title;
+          gross += selectedSubOptions[key].priceGross || 0;
+        }
+        y = ensureSpace(10, y);
+        y = textWrapped('• ' + label, MARGIN_X, y, maxTextW - 35, 11, false);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(11);
+        doc.text(fmt(gross), PAGE_W - MARGIN_X, y - LINE_H, { align: 'right' });
+      });
+    }
+
+    // Fees
+    if (autoFees && Object.keys(autoFees).length) {
+      y += 2;
+      y = ensureSpace(14, y);
+      setBrand();
+      y = textWrapped('Fees', MARGIN_X, y, maxTextW, 12, true);
+      setInk();
+      Object.values(autoFees).forEach(function(fee) {
+        y = ensureSpace(10, y);
+        y = textWrapped('• ' + (fee.name || 'Fee'), MARGIN_X, y, maxTextW - 35, 11, false);
+        doc.text(fmt(fee.priceGross || 0), PAGE_W - MARGIN_X, y - LINE_H, { align: 'right' });
+      });
+    }
+
+    // Extras
+    if (window.selectedExtras && Object.keys(window.selectedExtras).length) {
+      y += 2;
+      y = ensureSpace(14, y);
+      setBrand();
+      y = textWrapped('Special Extras', MARGIN_X, y, maxTextW, 12, true);
+      setInk();
+      Object.values(window.selectedExtras).forEach(function(ex) {
+        y = ensureSpace(10, y);
+        y = textWrapped('• ' + (ex.name || 'Extra'), MARGIN_X, y, maxTextW - 35, 11, false);
+        doc.text(fmt(ex.priceGross || 0), PAGE_W - MARGIN_X, y - LINE_H, { align: 'right' });
+      });
+    }
+
+    // Total
+    y += 6;
+    y = hr(y);
+    y = ensureSpace(18, y);
+    setBrand();
+    y = textWrapped('Price Summary', MARGIN_X, y, maxTextW, 12, true);
+    setInk();
+    y = textWrapped('TOTAL (incl. VAT): ' + fmt(totalGross), MARGIN_X, y, maxTextW, 12, true);
+
+    // Footer
+    var footerText = 'ROBETA d.o.o., Pohorska cesta 6B, 2380 Slovenj Gradec, Slovenia, E: info@robetamobil.si, T: +386 40 866 280, S: www.robetamobil.si';
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    setBrand();
+    doc.text(footerText, PAGE_W / 2, PAGE_H - 10, { align: 'center', maxWidth: PAGE_W - 20 });
+
+    doc.setProperties({ title: modelLabel + ' Configuration' });
+    doc.save('Womondo-' + String(modelLabel).replace(/\s+/g, '-') + '-Configuration.pdf');
+
+    log('PDF generated successfully');
+  } catch (err) {
+    console.error('[WOMONDO-PDF] PDF generation failed:', err);
+    alert('PDF generation failed. Check the browser console for details.');
+  }
+}
+
+function bindPdfDownloadButton() {
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.download-pdf-btn');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    generatePDF();
+  }, true);
+  log('PDF download button bound');
+}
+
+// -----------------------------
 // INIT
 // -----------------------------
 async function initialize() {
@@ -1324,22 +1515,10 @@ syncAutoTransportFee();
 updateSelectedEquipment();
 calculateTotal();
 
-// Expose state for external PDF script (in <body>)
-window.WOMONDO_STATE = {
-  get selectedModel()    { return selectedModel; },
-  get baseTotalGross()   { return baseTotalGross; },
-  get selectedItems()    { return selectedItems; },
-  get selectedSubOptions(){ return selectedSubOptions; },
-  get autoFees()         { return autoFees; },
-  get currentCountry()   { return currentCountry; },
-  formatEuro,
-  getCountryLabelFromUI,
-  calculateTotal,
-  syncAutoTransportFee,
-  syncSelectedPricesFromDOM,
-  updateSelectedEquipment,
-  getSelectedModelNumberOrFallback
-};
+// ---------------------------------
+// PDF GENERATOR (integrated)
+// ---------------------------------
+bindPdfDownloadButton();
 
 log('READY', window.WOMONDO_FINAL);
 }
