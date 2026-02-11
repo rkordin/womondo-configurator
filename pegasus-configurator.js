@@ -1,4 +1,4 @@
-/* pegasus-configurator.js */
+/* pegasus-configurator.js – v2.5 */
 (() => {
 'use strict';
 
