@@ -505,8 +505,11 @@ function isValidPostal(country, code) {
   return pattern.test(code.trim());
 }
 
-function loadDealersFromDom() {
-  return Array.from(document.querySelectorAll('.dealer-record'))
+let _dealerCache = null;
+let _dealerFetchPromise = null;
+
+function parseDealerRecords(root) {
+  return Array.from(root.querySelectorAll('.dealer-record[data-dealer-name]'))
     .map(el => ({
       name: (el.getAttribute('data-dealer-name') || '').trim(),
       country: (el.getAttribute('data-dealer-country') || '').trim(),
@@ -515,6 +518,42 @@ function loadDealersFromDom() {
       city: (el.getAttribute('data-dealer-city') || '').trim()
     }))
     .filter(d => d.name && !isNaN(d.lat) && !isNaN(d.lng));
+}
+
+function loadDealersFromDom() {
+  // Return cache if we already fetched
+  if (_dealerCache && _dealerCache.length) return Promise.resolve(_dealerCache);
+
+  // 1. Try local page DOM first
+  const local = parseDealerRecords(document);
+  if (local.length) {
+    log('Dealer auto-assign: found ' + local.length + ' dealers in local DOM');
+    _dealerCache = local;
+    return Promise.resolve(local);
+  }
+
+  // 2. If no local dealers, fetch from /configurator page (CMS source)
+  if (_dealerFetchPromise) return _dealerFetchPromise;
+
+  log('Dealer auto-assign: no local dealers, fetching from /configurator …');
+  _dealerFetchPromise = fetch('/configurator')
+    .then(r => r.text())
+    .then(html => {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const dealers = parseDealerRecords(doc);
+      log('Dealer auto-assign: fetched ' + dealers.length + ' dealers from /configurator');
+      _dealerCache = dealers;
+      _dealerFetchPromise = null;
+      return dealers;
+    })
+    .catch(err => {
+      log('Dealer auto-assign: fetch failed – ' + err.message);
+      _dealerFetchPromise = null;
+      return [];
+    });
+
+  return _dealerFetchPromise;
 }
 
 function haversineKm(lat1, lng1, lat2, lng2) {
@@ -551,34 +590,36 @@ function triggerDealerAutoAssign(countryVal, zipVal, assignedField) {
     }
     assignedField.value = 'Finding nearest dealer\u2026';
 
-    const dealers = loadDealersFromDom();
-    if (!dealers.length) {
-      log('Dealer auto-assign: no .dealer-record elements in DOM');
-      assignedField.value = '';
-      return;
-    }
+    // loadDealersFromDom now returns a Promise (local DOM or remote fetch)
+    loadDealersFromDom().then(dealers => {
+      if (!dealers.length) {
+        log('Dealer auto-assign: no dealers available');
+        assignedField.value = '';
+        return;
+      }
 
-    geocodePostal(country, postal)
-      .then(pos => {
-        const normC = country.toLowerCase();
-        let pool = dealers.filter(d => d.country.toLowerCase() === normC);
-        if (!pool.length) pool = dealers;
+      geocodePostal(country, postal)
+        .then(pos => {
+          const normC = country.toLowerCase();
+          let pool = dealers.filter(d => d.country.toLowerCase() === normC);
+          if (!pool.length) pool = dealers;
 
-        let best = null, bestDist = Infinity;
-        pool.forEach(d => {
-          const km = haversineKm(pos.lat, pos.lng, d.lat, d.lng);
-          if (km < bestDist) { bestDist = km; best = d; }
-        });
+          let best = null, bestDist = Infinity;
+          pool.forEach(d => {
+            const km = haversineKm(pos.lat, pos.lng, d.lat, d.lng);
+            if (km < bestDist) { bestDist = km; best = d; }
+          });
 
-        if (best) {
-          assignedField.value = best.name +
-            (best.city ? ' \u2014 ' + best.city : '') +
-            ' \u2014 ' + Math.round(bestDist) + ' km';
-        } else {
-          assignedField.value = '';
-        }
-      })
-      .catch(() => { assignedField.value = ''; });
+          if (best) {
+            assignedField.value = best.name +
+              (best.city ? ' \u2014 ' + best.city : '') +
+              ' \u2014 ' + Math.round(bestDist) + ' km';
+          } else {
+            assignedField.value = '';
+          }
+        })
+        .catch(() => { assignedField.value = ''; });
+    });
   }, 600);
 }
 
