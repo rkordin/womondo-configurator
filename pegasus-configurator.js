@@ -633,8 +633,8 @@ function injectStyles() {
   style.textContent = `
 #pegasus-modal-overlay{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.88);display:none;justify-content:center;align-items:flex-start;overflow-y:auto;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif}
 #pegasus-modal-overlay.pgc-open{display:flex}
-#pegasus-modal-overlay input,#pegasus-modal-overlay select,#pegasus-modal-overlay textarea{color:#fff !important;-webkit-text-fill-color:#fff !important}
-#pegasus-modal-overlay input::placeholder{color:#888 !important;-webkit-text-fill-color:#888 !important}
+#pegasus-modal-overlay input,#pegasus-modal-overlay input[type="text"],#pegasus-modal-overlay input[type="email"],#pegasus-modal-overlay input[type="tel"],#pegasus-modal-overlay input[type="number"],#pegasus-modal-overlay select,#pegasus-modal-overlay textarea,#pegasus-modal-overlay .pgc-form input,#pegasus-modal-overlay .pgc-form select,#pegasus-modal-overlay .pgc-form textarea{color:#fff !important;-webkit-text-fill-color:#fff !important;caret-color:#fff !important}
+#pegasus-modal-overlay input::placeholder,#pegasus-modal-overlay .pgc-form input::placeholder{color:#888 !important;-webkit-text-fill-color:#888 !important}
 .pgc-modal{background:#1a1a1a;color:#fff;width:100%;max-width:920px;min-height:100vh;display:flex;flex-direction:column;position:relative}
 .pgc-header{padding:20px 30px;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center}
 .pgc-header h2{margin:0;font-size:20px;font-weight:700;letter-spacing:.04em;color:#fff}
@@ -1065,28 +1065,28 @@ function renderForm() {
             novalidate>
 
         <div class="pgc-form-row">
-          <input type="text" name="First Name" id="First-Name" placeholder="First name *" required />
-          <input type="text" name="Last Name" id="Last-Name" placeholder="Last name *" required />
+          <input type="text" name="First Name" id="First-Name" placeholder="First name *" required style="color:#fff!important;-webkit-text-fill-color:#fff!important" />
+          <input type="text" name="Last Name" id="Last-Name" placeholder="Last name *" required style="color:#fff!important;-webkit-text-fill-color:#fff!important" />
         </div>
 
         <div class="field-email">
-          <input type="email" name="Email" id="Email" placeholder="Email *" required inputmode="email" autocomplete="email" />
+          <input type="email" name="Email" id="Email" placeholder="Email *" required inputmode="email" autocomplete="email" style="color:#fff!important;-webkit-text-fill-color:#fff!important" />
           <div class="field-email-msg"></div>
         </div>
 
         <div class="pgc-form-row">
           <div class="field-country">
-            <select id="Country-select" data-eu-country="1" aria-label="Country (EU only)" required>
+            <select id="Country-select" data-eu-country="1" aria-label="Country (EU only)" required style="color:#fff!important;-webkit-text-fill-color:#fff!important">
               <option value="" disabled>Select your country</option>
               ${euOpts}
             </select>
             <input type="hidden" name="Country" id="Country" value="${esc(state.country)}" />
           </div>
-          <input type="text" name="ZIP CODE" id="ZIP-CODE" placeholder="Zip Code *" required />
+          <input type="text" name="ZIP CODE" id="ZIP-CODE" placeholder="Zip Code *" required style="color:#fff!important;-webkit-text-fill-color:#fff!important" />
         </div>
 
         <div class="field-phone">
-          <input type="tel" name="Phone number" id="Phone-number" placeholder="Phone Number *" required inputmode="tel" value="${esc(dial)} " />
+          <input type="tel" name="Phone number" id="Phone-number" placeholder="Phone Number *" required inputmode="tel" value="${esc(dial)} " style="color:#fff!important;-webkit-text-fill-color:#fff!important" />
           <div class="field-phone-msg"></div>
         </div>
 
