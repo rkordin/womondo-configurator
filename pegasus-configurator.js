@@ -690,7 +690,7 @@ function injectStyles() {
 .pgc-form p{font-size:14px;color:#888;margin-bottom:24px}
 .pgc-form input,.pgc-form select,.pgc-form textarea{width:100%;padding:14px 16px;border:2px solid #333;border-radius:8px;background:#222;color:#fff !important;-webkit-text-fill-color:#fff !important;font-size:14px;margin-bottom:12px;box-sizing:border-box;outline:none;transition:border-color .2s}
 .pgc-form input:focus,.pgc-form select:focus{border-color:rgb(161,113,90) !important;box-shadow:none !important}
-.pgc-form input::placeholder{color:#666 !important;-webkit-text-fill-color:#666 !important}
+.pgc-form input::placeholder{color:#888 !important;-webkit-text-fill-color:#888 !important}
 .pgc-form select{appearance:none;-webkit-appearance:none}
 .pgc-form .field-email,.pgc-form .field-phone{display:contents}
 .pgc-form .field-country{width:calc(50% - 6px);flex:none;min-width:0}
@@ -698,9 +698,9 @@ function injectStyles() {
 .pgc-form #ZIP-CODE{width:calc(50% - 6px) !important;flex:none !important}
 .pgc-form .field-email-msg,.pgc-form .field-phone-msg{margin-top:-8px;margin-bottom:8px;font-size:12px;line-height:1.3;color:#ff6b6b;display:none}
 .pgc-form .is-invalid{border-color:#ff6b6b !important}
-.pgc-form .pgc-textarea-visible{width:100%;min-height:120px;max-height:260px;resize:vertical;padding:12px 14px;border:2px solid #333;border-radius:8px;background:#1e1e1e;color:#aaa !important;-webkit-text-fill-color:#aaa !important;font-size:12px;line-height:1.5;margin-bottom:12px;box-sizing:border-box;font-family:monospace;cursor:default}
-.pgc-form .pgc-dealer-field{width:100%;padding:14px 16px;border:2px solid #333;border-radius:8px;background:#1e1e1e;color:#ccc !important;-webkit-text-fill-color:#ccc !important;font-size:13px;margin-bottom:12px;box-sizing:border-box;cursor:default}
-.pgc-form .pgc-field-label{font-size:12px;color:#666;margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:.03em}
+.pgc-form .pgc-textarea-visible{width:100%;min-height:120px;max-height:260px;resize:vertical;padding:12px 14px;border:2px solid #333;border-radius:8px;background:#1e1e1e;color:#ddd !important;-webkit-text-fill-color:#ddd !important;font-size:12px;line-height:1.5;margin-bottom:12px;box-sizing:border-box;font-family:monospace;cursor:default}
+.pgc-form .pgc-dealer-field{width:100%;padding:14px 16px;border:2px solid #333;border-radius:8px;background:#1e1e1e;color:#fff !important;-webkit-text-fill-color:#fff !important;font-size:13px;margin-bottom:12px;box-sizing:border-box;cursor:default}
+.pgc-form .pgc-field-label{font-size:12px;color:#999;margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:.03em}
 .pgc-form-submit{width:100%;padding:16px;border:none;border-radius:8px;background:rgb(161,113,90);color:#fff;font-size:16px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.04em;margin-top:8px;transition:background .2s}
 .pgc-form-submit:hover{background:rgb(181,133,110)}
 .pgc-form-submit:disabled{opacity:.5;cursor:not-allowed}
@@ -1720,6 +1720,18 @@ async function initialize() {
       openModal();
     }
   });
+
+  // Convert "See equipment" hero button into "CONFIGURE YOURS" configurator trigger
+  const heroActions = document.querySelector('.wm-hero-actions');
+  if (heroActions) {
+    const equipBtn = heroActions.querySelector('a[href="#equipment"]');
+    if (equipBtn) {
+      equipBtn.textContent = 'CONFIGURE YOURS';
+      equipBtn.href = '#';
+      equipBtn.classList.add('pegasus-configure-btn');
+      log('Hero "See equipment" button converted to configurator trigger');
+    }
+  }
 
   log('Pegasus Configurator READY');
 }
