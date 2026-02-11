@@ -651,7 +651,9 @@ function injectStyles() {
 .pgc-form input:focus,.pgc-form select:focus{border-color:rgb(161,113,90) !important;box-shadow:none !important}
 .pgc-form input::placeholder{color:#666 !important;-webkit-text-fill-color:#666 !important}
 .pgc-form select{appearance:none;-webkit-appearance:none}
-.pgc-form .field-email,.pgc-form .field-country,.pgc-form .field-phone{display:contents}
+.pgc-form .field-email,.pgc-form .field-phone{display:contents}
+.pgc-form .field-country{flex:1;min-width:0}
+.pgc-form .field-country select{width:100%}
 .pgc-form .field-email-msg,.pgc-form .field-phone-msg{margin-top:-8px;margin-bottom:8px;font-size:12px;line-height:1.3;color:#ff6b6b;display:none}
 .pgc-form .is-invalid{border-color:#ff6b6b !important}
 .pgc-form .pgc-textarea-visible{width:100%;min-height:120px;max-height:260px;resize:vertical;padding:12px 14px;border:2px solid #333;border-radius:8px;background:#1e1e1e;color:#aaa !important;-webkit-text-fill-color:#aaa !important;font-size:12px;line-height:1.5;margin-bottom:12px;box-sizing:border-box;font-family:monospace;cursor:default}
@@ -1028,14 +1030,14 @@ function renderForm() {
         </div>
 
         <div class="pgc-form-row">
-          <div class="field-country" style="flex:1">
+          <div class="field-country">
             <select id="Country-select" data-eu-country="1" aria-label="Country (EU only)" required>
               <option value="" disabled>Select your country</option>
               ${euOpts}
             </select>
             <input type="hidden" name="Country" id="Country" value="${esc(state.country)}" />
           </div>
-          <input type="text" name="ZIP CODE" id="ZIP-CODE" placeholder="Zip Code *" style="flex:1" required />
+          <input type="text" name="ZIP CODE" id="ZIP-CODE" placeholder="Zip Code *" style="flex:1;min-width:0" required />
         </div>
 
         <div class="field-phone">
