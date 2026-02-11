@@ -828,7 +828,6 @@ function renderForm() {
 
         <!-- Hidden fields for HubSpot -->
         <textarea name="textarea field" class="textarea-field" id="textarea-field" style="display:none" data-wfhsfieldname="FormTextarea-customes_configuration_and_price">${esc(summaryText)}</textarea>
-        <input type="hidden" name="Origin" id="Origin" value="PEGASUS CONFIGURATOR" data-wfhsfieldname="FormTextInput-contact_origin" />
         <input type="hidden" name="assigned dealer" id="assigned-dealer" value="" data-wfhsfieldname="FormTextInput-assigned_dealer" />
         <input type="hidden" name="hutk" value="" />
         <input type="hidden" name="ipAddress" value="" />
@@ -1007,7 +1006,6 @@ function fillAndSubmitForm(form, contact, summaryText, assignedDealer) {
 
   // Hidden fields
   setField('.textarea-field, #textarea-field, [name="textarea field"]', summaryText);
-  setField('#Origin, [name="Origin"]', 'PEGASUS CONFIGURATOR');
   setField('#assigned-dealer, [name="assigned dealer"]', assignedDealer);
 
   log('Webflow form fields populated — submitting...');
