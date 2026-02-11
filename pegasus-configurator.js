@@ -25,6 +25,43 @@ const COUNTRY_MAP = {
 };
 const COUNTRY_LIST = Object.keys(COUNTRY_MAP);
 
+// EU countries for form dropdown (full list)
+const EU_COUNTRIES = [
+  'Austria','Belgium','Bulgaria','Croatia','Cyprus','Czech Republic',
+  'Denmark','Estonia','Finland','France','Germany','Greece','Hungary',
+  'Ireland','Italy','Latvia','Lithuania','Luxembourg','Malta',
+  'Netherlands','Poland','Portugal','Romania','Slovakia','Slovenia',
+  'Spain','Sweden'
+];
+
+// Phone dial codes per EU country
+const DIAL = {
+  'AUSTRIA':'+43','BELGIUM':'+32','BULGARIA':'+359','CROATIA':'+385',
+  'CYPRUS':'+357','CZECH REPUBLIC':'+420','DENMARK':'+45','ESTONIA':'+372',
+  'FINLAND':'+358','FRANCE':'+33','GERMANY':'+49','GREECE':'+30',
+  'HUNGARY':'+36','IRELAND':'+353','ITALY':'+39','LATVIA':'+371',
+  'LITHUANIA':'+370','LUXEMBOURG':'+352','MALTA':'+356','NETHERLANDS':'+31',
+  'POLAND':'+48','PORTUGAL':'+351','ROMANIA':'+40','SLOVAKIA':'+421',
+  'SLOVENIA':'+386','SPAIN':'+34','SWEDEN':'+46'
+};
+
+// Postal code validation patterns per country
+const POSTAL_PATTERNS = {
+  'Germany': /^\d{5}$/, 'Austria': /^\d{4}$/, 'Belgium': /^\d{4}$/,
+  'France': /^\d{5}$/, 'Italy': /^\d{5}$/, 'Spain': /^\d{5}$/,
+  'Portugal': /^\d{4}-?\d{3}$/, 'Poland': /^\d{2}-?\d{3}$/,
+  'Czech Republic': /^\d{3}\s?\d{2}$/, 'Denmark': /^\d{4}$/,
+  'Sweden': /^\d{3}\s?\d{2}$/, 'Finland': /^\d{5}$/,
+  'Slovenia': /^\d{4}$/, 'Slovakia': /^\d{3}\s?\d{2}$/,
+  'Hungary': /^\d{4}$/, 'Croatia': /^\d{5}$/,
+  'Netherlands': /^\d{4}\s?[A-Z]{2}$/i, 'Romania': /^\d{6}$/,
+  'Bulgaria': /^\d{4}$/, 'Greece': /^\d{3}\s?\d{2}$/,
+  'Ireland': /^[A-Za-z]\d[\dWw]\s?[A-Za-z\d]{4}$/i,
+  'Luxembourg': /^\d{4}$/, 'Malta': /^[A-Z]{3}\s?\d{2,4}$/i,
+  'Cyprus': /^\d{4}$/, 'Lithuania': /^LT-?\d{5}$/i,
+  'Latvia': /^LV-?\d{4}$/i, 'Estonia': /^\d{5}$/
+};
+
 // MO_CODE → item id mapping (used to look up CSV row)
 const CODE_MAP = {
   // Models
@@ -359,9 +396,8 @@ function syncCountryToWebflow(countryLabel) {
       }
     }
 
-    // 3. Also sync to the modal form's own country field if it exists
-    const modalCountryInput = document.querySelector('#pgc-contact-form .field-country input');
-    const modalEuSelect = document.querySelector('#pgc-contact-form select[data-eu-country]');
+    // 3. Also sync to the modal form's own EU select + hidden country input
+    const modalEuSelect = document.querySelector('#pgc-contact-form #Country-select, #pgc-contact-form select[data-eu-country]');
     if (modalEuSelect) {
       const opt2 = Array.from(modalEuSelect.options).find(o =>
         o.value.toLowerCase() === countryLabel.toLowerCase()
@@ -370,15 +406,180 @@ function syncCountryToWebflow(countryLabel) {
         modalEuSelect.value = opt2.value;
         modalEuSelect.dispatchEvent(new Event('change', { bubbles: true }));
       }
-    } else if (modalCountryInput) {
-      modalCountryInput.value = countryLabel;
-      modalCountryInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const modalCountryHidden = document.querySelector('#pgc-contact-form #Country');
+    if (modalCountryHidden) {
+      modalCountryHidden.value = countryLabel;
     }
 
     log('Country synced to Webflow form:', countryLabel);
   } catch (e) {
     log('Country sync error (non-critical):', e);
   }
+}
+
+// ─────────────────────────────────────
+// 4b. PHONE PREFIX + VALIDATION
+// ─────────────────────────────────────
+function getDialCode(countryLabel) {
+  return DIAL[(countryLabel || '').trim().toUpperCase()] || null;
+}
+
+function swapPhonePrefix(input, dial) {
+  if (!dial) return;
+  const rest = (input.value || '').replace(/^\+\d+(?:\s)?/, '');
+  const next = dial + (rest ? ' ' + rest.replace(/^\s+/, '') : ' ');
+  if (input.value !== next) {
+    input.value = next;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}
+
+function strongSanitizePhone(input) {
+  let raw = String(input.value || '').replace(/[^+\d]/g, '');
+  let dial = getDialCode(state.country);
+  if (!dial) {
+    const m = raw.match(/^\+\d{1,4}/);
+    dial = m ? m[0] : '+';
+  }
+  let userPart;
+  if (raw.startsWith(dial)) { userPart = raw.slice(dial.length); }
+  else { userPart = raw.replace(/^\+\d{1,4}/, ''); }
+  userPart = userPart.replace(/\D/g, '');
+  input.value = dial + (userPart ? ' ' + userPart : ' ');
+}
+
+function phoneDigitsCount(v) { return (v || '').replace(/\D/g, '').length; }
+function isPhoneValid(v) {
+  if (!/^\+\d/.test(v || '')) return false;
+  const d = phoneDigitsCount(v);
+  return d >= 8 && d <= 15;
+}
+
+function showFieldError(input, msgClass, text) {
+  const msg = input.parentElement && input.parentElement.querySelector('.' + msgClass);
+  if (msg) { msg.textContent = text; msg.style.display = 'block'; }
+  input.classList.add('is-invalid');
+}
+function clearFieldError(input, msgClass) {
+  const msg = input.parentElement && input.parentElement.querySelector('.' + msgClass);
+  if (msg) { msg.textContent = ''; msg.style.display = 'none'; }
+  input.classList.remove('is-invalid');
+}
+
+function validatePhoneField(input, showErr) {
+  strongSanitizePhone(input);
+  const ok = isPhoneValid(input.value);
+  if (!ok && showErr) showFieldError(input, 'field-phone-msg', 'Please enter a valid phone number (e.g., +386 40123456).');
+  else if (ok) clearFieldError(input, 'field-phone-msg');
+  return ok;
+}
+
+// ─────────────────────────────────────
+// 4c. EMAIL VALIDATION
+// ─────────────────────────────────────
+const EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+function isEmailValid(v) {
+  v = (v || '').trim();
+  if (!EMAIL_REGEX.test(v)) return false;
+  if (v.includes('..')) return false;
+  const domain = v.split('@')[1];
+  if (!domain) return false;
+  return !domain.split('.').some(lbl => !lbl || lbl.startsWith('-') || lbl.endsWith('-'));
+}
+
+function validateEmailField(input, showErr) {
+  const ok = isEmailValid(input.value);
+  if (!ok && showErr) showFieldError(input, 'field-email-msg', 'Please enter a valid email address (e.g., name@example.com).');
+  else if (ok) clearFieldError(input, 'field-email-msg');
+  return ok;
+}
+
+// ─────────────────────────────────────
+// 4d. DEALER AUTO-ASSIGN (Haversine + Nominatim)
+// ─────────────────────────────────────
+function isValidPostal(country, code) {
+  if (!country || !code) return false;
+  const pattern = POSTAL_PATTERNS[country.trim()];
+  if (!pattern) return code.trim().length >= 3;
+  return pattern.test(code.trim());
+}
+
+function loadDealersFromDom() {
+  return Array.from(document.querySelectorAll('.dealer-record'))
+    .map(el => ({
+      name: (el.getAttribute('data-dealer-name') || '').trim(),
+      country: (el.getAttribute('data-dealer-country') || '').trim(),
+      lat: parseFloat(el.getAttribute('data-dealer-lat')),
+      lng: parseFloat(el.getAttribute('data-dealer-lng')),
+      city: (el.getAttribute('data-dealer-city') || '').trim()
+    }))
+    .filter(d => d.name && !isNaN(d.lat) && !isNaN(d.lng));
+}
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const toRad = deg => deg * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.asin(Math.sqrt(a));
+}
+
+function geocodePostal(country, postal) {
+  const url = 'https://nominatim.openstreetmap.org/search?q=' +
+    encodeURIComponent(postal + ' ' + country) + '&format=json&limit=1';
+  return fetch(url, { headers: { 'Accept': 'application/json' } })
+    .then(r => r.json())
+    .then(data => {
+      if (!data || !data.length) throw new Error('no geocode result');
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    });
+}
+
+let dealerAssignTimer = null;
+function triggerDealerAutoAssign(countryVal, zipVal, assignedField) {
+  clearTimeout(dealerAssignTimer);
+  dealerAssignTimer = setTimeout(() => {
+    const country = (countryVal || '').trim();
+    const postal = (zipVal || '').trim();
+    if (!country || !postal || !isValidPostal(country, postal)) {
+      assignedField.value = '';
+      return;
+    }
+    assignedField.value = 'Finding nearest dealer\u2026';
+
+    const dealers = loadDealersFromDom();
+    if (!dealers.length) {
+      log('Dealer auto-assign: no .dealer-record elements in DOM');
+      assignedField.value = '';
+      return;
+    }
+
+    geocodePostal(country, postal)
+      .then(pos => {
+        const normC = country.toLowerCase();
+        let pool = dealers.filter(d => d.country.toLowerCase() === normC);
+        if (!pool.length) pool = dealers;
+
+        let best = null, bestDist = Infinity;
+        pool.forEach(d => {
+          const km = haversineKm(pos.lat, pos.lng, d.lat, d.lng);
+          if (km < bestDist) { bestDist = km; best = d; }
+        });
+
+        if (best) {
+          assignedField.value = best.name +
+            (best.city ? ' \u2014 ' + best.city : '') +
+            ' \u2014 ' + Math.round(bestDist) + ' km';
+        } else {
+          assignedField.value = '';
+        }
+      })
+      .catch(() => { assignedField.value = ''; });
+  }, 600);
 }
 
 // ─────────────────────────────────────
@@ -452,6 +653,10 @@ function injectStyles() {
 .pgc-form select{appearance:none;-webkit-appearance:none}
 .pgc-form .field-email,.pgc-form .field-country,.pgc-form .field-phone{display:contents}
 .pgc-form .field-email-msg,.pgc-form .field-phone-msg{margin-top:-8px;margin-bottom:8px;font-size:12px;line-height:1.3;color:#ff6b6b;display:none}
+.pgc-form .is-invalid{border-color:#ff6b6b !important}
+.pgc-form .pgc-textarea-visible{width:100%;min-height:120px;max-height:260px;resize:vertical;padding:12px 14px;border:2px solid #333;border-radius:8px;background:#1e1e1e;color:#aaa !important;-webkit-text-fill-color:#aaa !important;font-size:12px;line-height:1.5;margin-bottom:12px;box-sizing:border-box;font-family:monospace;cursor:default}
+.pgc-form .pgc-dealer-field{width:100%;padding:14px 16px;border:2px solid #333;border-radius:8px;background:#1e1e1e;color:#ccc !important;-webkit-text-fill-color:#ccc !important;font-size:13px;margin-bottom:12px;box-sizing:border-box;cursor:default}
+.pgc-form .pgc-field-label{font-size:12px;color:#666;margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:.03em}
 .pgc-form-submit{width:100%;padding:16px;border:none;border-radius:8px;background:rgb(161,113,90);color:#fff;font-size:16px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.04em;margin-top:8px;transition:background .2s}
 .pgc-form-submit:hover{background:rgb(181,133,110)}
 .pgc-form-submit:disabled{opacity:.5;cursor:not-allowed}
@@ -795,6 +1000,13 @@ function renderStep5() {
 // ─────────────────────────────────────
 function renderForm() {
   const summaryText = buildSummaryText();
+  const dial = getDialCode(state.country) || '+49';
+
+  // Build EU country <option> list
+  const euOpts = EU_COUNTRIES.map(c =>
+    `<option value="${esc(c)}"${c === state.country ? ' selected' : ''}>${esc(c)}</option>`
+  ).join('');
+
   contentEl.innerHTML = `
     <div class="pgc-form conf-email-form">
       <h3>Get your configuration</h3>
@@ -813,22 +1025,37 @@ function renderForm() {
           <input type="text" name="First Name" id="First-Name" placeholder="First name *" required data-wfhsfieldname="FormTextInput-firstname" />
           <input type="text" name="Last Name" id="Last-Name" placeholder="Last name *" required data-wfhsfieldname="FormTextInput-lastname" />
         </div>
+
         <div class="field-email">
-          <input type="email" name="Email" id="Email" placeholder="Email *" required data-wfhsfieldname="FormTextInput-email" />
-        </div>
-        <div class="pgc-form-row">
-          <div class="field-country" style="flex:1">
-            <input type="text" name="Country" id="Country" placeholder="Country" value="${esc(state.country)}" data-wfhsfieldname="FormTextInput-country" />
-          </div>
-          <input type="text" name="ZIP CODE" id="ZIP-CODE" placeholder="Zip Code" style="flex:1" required data-wfhsfieldname="FormTextInput-zip" />
-        </div>
-        <div class="field-phone">
-          <input type="tel" name="Phone number" id="Phone-number" placeholder="Phone Number" required data-wfhsfieldname="FormTextInput-phone" />
+          <input type="email" name="Email" id="Email" placeholder="Email *" required inputmode="email" autocomplete="email" data-wfhsfieldname="FormTextInput-email" />
+          <div class="field-email-msg"></div>
         </div>
 
-        <!-- Hidden fields for HubSpot -->
-        <textarea name="textarea field" class="textarea-field" id="textarea-field" style="display:none" data-wfhsfieldname="FormTextarea-customes_configuration_and_price">${esc(summaryText)}</textarea>
-        <input type="hidden" name="assigned dealer" id="assigned-dealer" value="" data-wfhsfieldname="FormTextInput-assigned_dealer" />
+        <div class="pgc-form-row">
+          <div class="field-country" style="flex:1">
+            <select id="Country-select" data-eu-country="1" aria-label="Country (EU only)" required>
+              <option value="" disabled>Select your country</option>
+              ${euOpts}
+            </select>
+            <input type="hidden" name="Country" id="Country" value="${esc(state.country)}" data-wfhsfieldname="FormTextInput-country" />
+          </div>
+          <input type="text" name="ZIP CODE" id="ZIP-CODE" placeholder="Zip Code *" style="flex:1" required data-wfhsfieldname="FormTextInput-zip" />
+        </div>
+
+        <div class="field-phone">
+          <input type="tel" name="Phone number" id="Phone-number" placeholder="Phone Number *" required inputmode="tel" value="${esc(dial)} " data-wfhsfieldname="FormTextInput-phone" />
+          <div class="field-phone-msg"></div>
+        </div>
+
+        <!-- Configuration summary (visible, read-only) -->
+        <span class="pgc-field-label">Customer's configuration and price</span>
+        <textarea name="textarea field" class="textarea-field pgc-textarea-visible" id="textarea-field" readonly data-wfhsfieldname="FormTextarea-customes_configuration_and_price">${esc(summaryText)}</textarea>
+
+        <!-- Assigned dealer (visible, read-only, auto-populated) -->
+        <span class="pgc-field-label">Assigned dealer</span>
+        <input type="text" name="assigned dealer" id="assigned-dealer" class="pgc-dealer-field" value="" readonly placeholder="Will be auto-assigned based on your location" data-wfhsfieldname="FormTextInput-assigned_dealer" />
+
+        <!-- HubSpot tracking (hidden) -->
         <input type="hidden" name="hutk" value="" />
         <input type="hidden" name="ipAddress" value="" />
         <input type="hidden" name="pageUri" value="" />
@@ -856,6 +1083,12 @@ function renderForm() {
   `;
 
   const form = contentEl.querySelector('#pgc-contact-form');
+  const countrySelect = form.querySelector('#Country-select');
+  const countryHidden = form.querySelector('#Country');
+  const zipField = form.querySelector('#ZIP-CODE');
+  const phoneInput = form.querySelector('#Phone-number');
+  const emailInput = form.querySelector('#Email');
+  const assignedField = form.querySelector('#assigned-dealer');
 
   // Fill HubSpot tracking hidden fields
   try {
@@ -866,54 +1099,111 @@ function renderForm() {
     if (hutk) form.querySelector('[name="hutk"]').value = hutk.split('=')[1];
   } catch (e) { /* optional */ }
 
+  // ── EU Country select → sync to hidden input + phone prefix + dealer ──
+  countrySelect.addEventListener('change', () => {
+    const val = countrySelect.value;
+    countryHidden.value = val;
+    countryHidden.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Update phone prefix
+    const newDial = getDialCode(val);
+    if (newDial) swapPhonePrefix(phoneInput, newDial);
+    strongSanitizePhone(phoneInput);
+
+    // Trigger dealer auto-assign
+    triggerDealerAutoAssign(val, zipField.value, assignedField);
+  });
+
+  // ── ZIP field → trigger dealer auto-assign ──
+  zipField.addEventListener('input', () => {
+    triggerDealerAutoAssign(countrySelect.value, zipField.value, assignedField);
+  });
+  zipField.addEventListener('change', () => {
+    triggerDealerAutoAssign(countrySelect.value, zipField.value, assignedField);
+  });
+
+  // ── Phone input: restrict to digits + prefix, validate ──
+  phoneInput.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key;
+    if (['Backspace','Delete','Tab','ArrowLeft','ArrowRight','Home','End'].includes(k)) return;
+    if (k === ' ') { e.preventDefault(); return; }
+    if (k === '+') {
+      if ((phoneInput.value || '').includes('+') || phoneInput.selectionStart !== 0) e.preventDefault();
+      return;
+    }
+    if (/\d/.test(k)) return;
+    e.preventDefault();
+  });
+  phoneInput.addEventListener('input', () => validatePhoneField(phoneInput, false));
+  phoneInput.addEventListener('blur', () => validatePhoneField(phoneInput, true));
+  phoneInput.addEventListener('focus', () => {
+    if (!/^\+\d/.test(phoneInput.value || '')) {
+      const d = getDialCode(countrySelect.value);
+      if (d) swapPhonePrefix(phoneInput, d);
+      strongSanitizePhone(phoneInput);
+    }
+  });
+
+  // ── Email validation ──
+  emailInput.addEventListener('input', () => validateEmailField(emailInput, false));
+  emailInput.addEventListener('blur', () => validateEmailField(emailInput, true));
+
+  // ── Form submit ──
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     handleFormSubmit(form);
   });
 
-  // Let the embedded scripts (EU country dropdown, phone prefix, email validation,
-  // dealer auto-assign) discover and enhance these fields.
-  // The MutationObserver in the embedded scripts will fire automatically,
-  // but we also nudge it after a small delay.
-  setTimeout(() => {
-    // Fire a synthetic DOM mutation so scripts re-init
-    const marker = document.createElement('span');
-    marker.style.display = 'none';
-    form.appendChild(marker);
-    marker.remove();
-    log('Form rendered — embedded scripts notified');
-  }, 100);
-
-  // Pre-sync country from configurator state → country input
-  // (the embedded script will then convert it to EU select)
-  const countryInput = form.querySelector('#Country');
-  if (countryInput && state.country) {
-    countryInput.value = state.country;
-    countryInput.dispatchEvent(new Event('input', { bubbles: true }));
-    countryInput.dispatchEvent(new Event('change', { bubbles: true }));
+  // ── Auto-trigger dealer assign if country + zip already filled ──
+  if (countrySelect.value && zipField.value) {
+    triggerDealerAutoAssign(countrySelect.value, zipField.value, assignedField);
   }
+
+  log('Form rendered with EU dropdown, phone prefix, email validation, dealer auto-assign');
 }
 
 function handleFormSubmit(form) {
   const fd = new FormData(form);
   const firstname = (fd.get('First Name') || '').toString().trim();
   const lastname = (fd.get('Last Name') || '').toString().trim();
-  const email = (fd.get('Email') || '').toString().trim();
+  const emailInput = form.querySelector('#Email');
+  const phoneInput = form.querySelector('#Phone-number');
+  const email = (emailInput ? emailInput.value : '').trim();
   const consentRequired = form.querySelector('[name="895486508"]');
 
   if (!firstname || !lastname) { alert('Please enter your first and last name.'); return; }
-  if (!email || !email.includes('@')) { alert('Please enter a valid email address.'); return; }
+
+  // Validate email
+  if (!isEmailValid(email)) {
+    validateEmailField(emailInput, true);
+    emailInput.focus();
+    return;
+  }
+
+  // Validate phone
+  if (phoneInput && !isPhoneValid(phoneInput.value)) {
+    validatePhoneField(phoneInput, true);
+    phoneInput.focus();
+    return;
+  }
+
   if (consentRequired && !consentRequired.checked) { alert('Please agree to the contact consent to continue.'); return; }
 
   const submitBtn = form.querySelector('.pgc-form-submit');
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'SUBMITTING...'; }
 
-  // Read values from the modal form (including any modifications by embedded scripts)
-  const phone = (form.querySelector('#Phone-number') || {}).value || '';
-  const country = (form.querySelector('#Country') || {}).value ||
-                  (form.querySelector('select[data-eu-country]') || {}).value || state.country;
+  // Read values from the modal form
+  const phone = (phoneInput || {}).value || '';
+  const countrySelect = form.querySelector('#Country-select');
+  const country = (countrySelect ? countrySelect.value : '') ||
+                  (form.querySelector('#Country') || {}).value || state.country;
   const zip = (form.querySelector('#ZIP-CODE') || {}).value || '';
   const assignedDealer = (form.querySelector('#assigned-dealer') || {}).value || '';
+
+  // Sync hidden country input
+  const countryHidden = form.querySelector('#Country');
+  if (countryHidden) countryHidden.value = country;
 
   // Refresh the summary text with latest state
   const summaryText = buildSummaryText();
@@ -926,11 +1216,11 @@ function handleFormSubmit(form) {
     email,
     phone: phone.trim(),
     country: country.trim(),
-    zip: zip.trim()
+    zip: zip.trim(),
+    assignedDealer: assignedDealer.trim()
   };
 
   // ── 1) Bridge to native Webflow form & submit it ──
-  // This sends through Webflow → HubSpot + Email Notifications + Pipedream webhook
   bridgeAndSubmitWebflowForm(contact, summaryText, assignedDealer);
 
   // ── 2) Direct HubSpot POST (backup) ──
@@ -1106,6 +1396,7 @@ function buildPayload(contact) {
     country: state.country,
     countryCol: state.countryCol,
     contact,
+    assignedDealer: contact.assignedDealer || '',
     configuration: {
       model: state.model,
       modelName: model ? model.name : null,
