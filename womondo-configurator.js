@@ -1440,7 +1440,7 @@ async function generatePDF() {
 
 function bindPdfDownloadButton() {
   document.addEventListener('click', function(e) {
-    var btn = e.target.closest('.download-pdf-btn');
+var btn = e.target.closest('.download-pdf-btn, .conf-download-pdf-btn');
     if (!btn) return;
     e.preventDefault();
     e.stopImmediatePropagation();
