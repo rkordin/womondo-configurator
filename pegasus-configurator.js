@@ -8,6 +8,7 @@
 const CFG = window.PEGASUS_CFG || {};
 const WEBHOOK_URL = CFG.webhookUrl || '';
 const DEBUG = !!CFG.debug;
+const HUBSPOT_FORM_URL = 'https://hubspotonwebflow.com/api/forms/ca46efc7-fbe4-4b8e-ac19-65287ed58319';
 const log = (...a) => { if (DEBUG) console.log('[PEGASUS]', ...a); };
 
 const fmtEUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
@@ -201,6 +202,14 @@ function injectStyles() {
 .pgc-form select{appearance:none;-webkit-appearance:none}
 .pgc-form-submit{width:100%;padding:16px;border:none;border-radius:8px;background:rgb(161,113,90);color:#fff;font-size:16px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.04em;margin-top:8px;transition:background .2s}
 .pgc-form-submit:hover{background:rgb(181,133,110)}
+.pgc-form-submit:disabled{opacity:.5;cursor:not-allowed}
+.pgc-consent-block{margin-top:16px;margin-bottom:12px}
+.pgc-consent-block p{font-size:12px;color:#777;line-height:1.5;margin-bottom:10px}
+.pgc-consent-block a{color:rgb(161,113,90);text-decoration:underline}
+.pgc-consent-label{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;cursor:pointer;font-size:13px;color:#ccc;line-height:1.4}
+.pgc-consent-label input[type="checkbox"]{width:18px;height:18px;flex-shrink:0;margin-top:1px;accent-color:rgb(161,113,90);cursor:pointer}
+.pgc-form-row{display:flex;gap:12px}
+.pgc-form-row input{flex:1}
 .pgc-success{text-align:center;padding:60px 20px}
 .pgc-success h3{font-size:22px;font-weight:700;margin-bottom:12px;color:#fff}
 .pgc-success p{color:#888;margin-bottom:30px;font-size:14px}
@@ -219,6 +228,7 @@ function injectStyles() {
 .pgc-total-price{font-size:18px;padding-right:10px}
 .pgc-nav-btns{width:100%;justify-content:stretch}
 .pgc-nav-btns .pgc-btn{flex:1}
+.pgc-form-row{flex-direction:column;gap:0}
 }
 `;
   document.head.appendChild(style);
@@ -513,48 +523,79 @@ function renderStep5() {
 }
 
 // ─────────────────────────────────────
-// 7. FORM
+// 7. FORM  (HubSpot-connected)
 // ─────────────────────────────────────
 function renderForm() {
+  const summaryText = buildSummaryText();
   contentEl.innerHTML = `
     <div class="pgc-form">
       <h3>Get your configuration</h3>
       <p>Leave your contact details so we can send you the configuration and say hello.</p>
-      <form id="pgc-contact-form" novalidate>
-        <input type="text" name="firstName" placeholder="First name *" required />
-        <input type="text" name="lastName" placeholder="Last name *" required />
+      <form id="pgc-contact-form"
+            action="${esc(HUBSPOT_FORM_URL)}"
+            method="POST"
+            enctype="multipart/form-data"
+            data-name="WOMONDO PEGASUS CONFIGURATOR"
+            data-wf-hs-form="webflowHubSpotForm"
+            data-wf-page-id="69674f7a8346b86879ce8dbc"
+            data-wf-element-id="afad9089-6572-2c8c-7157-779d36f5a563"
+            novalidate>
+
+        <div class="pgc-form-row">
+          <input type="text" name="firstname" placeholder="First name *" required />
+          <input type="text" name="lastname" placeholder="Last name *" required />
+        </div>
         <input type="email" name="email" placeholder="Email *" required />
-        <input type="tel" name="phone" placeholder="Phone number" />
-        <select name="country">
-          <option value="">Select country</option>
-          <option value="DE">Germany</option>
-          <option value="AT">Austria</option>
-          <option value="SI">Slovenia</option>
-          <option value="HR">Croatia</option>
-          <option value="IT">Italy</option>
-          <option value="FR">France</option>
-          <option value="NL">Netherlands</option>
-          <option value="BE">Belgium</option>
-          <option value="ES">Spain</option>
-          <option value="PT">Portugal</option>
-          <option value="PL">Poland</option>
-          <option value="CZ">Czech Republic</option>
-          <option value="DK">Denmark</option>
-          <option value="SE">Sweden</option>
-          <option value="FI">Finland</option>
-          <option value="HU">Hungary</option>
-          <option value="RO">Romania</option>
-          <option value="BG">Bulgaria</option>
-          <option value="GR">Greece</option>
-          <option value="CY">Cyprus</option>
-          <option value="EE">Estonia</option>
+        <input type="text" name="country" placeholder="Country / Region" />
+        <div class="pgc-form-row">
+          <input type="text" name="zip" placeholder="Postal code" />
+          <input type="tel" name="phone" placeholder="Phone number" />
+        </div>
+
+        <!-- Hidden fields for HubSpot -->
+        <textarea name="customes_configuration_and_price" style="display:none">${esc(summaryText)}</textarea>
+        <select name="contact_origin" hidden style="display:none">
+          <option value="WOMONOD CONFIGURATOR (rok)" selected>WOMONDO CONFIGURATOR (rok)</option>
         </select>
-        <input type="text" name="zip" placeholder="ZIP code" />
+        <input type="hidden" name="assigned_dealer" value="" />
+        <input type="hidden" name="hutk" value="" />
+        <input type="hidden" name="ipAddress" value="" />
+        <input type="hidden" name="pageUri" value="" />
+        <input type="hidden" name="pageId" value="" />
+        <input type="hidden" name="pageName" value="" />
+
+        <!-- Consent -->
+        <div class="pgc-consent-block">
+          <p>Robeta uses your contact information to respond to your request and keep you informed about our products, services, and news. Please indicate below how you prefer to be contacted:</p>
+          <label class="pgc-consent-label">
+            <input type="checkbox" name="895486508" value="895486508" required />
+            <span>I agree that Robeta can contact me regarding my request. *</span>
+          </label>
+          <label class="pgc-consent-label">
+            <input type="checkbox" name="890239396" value="890239396" />
+            <span>I agree to receive information about products, services, and news from Robeta.</span>
+          </label>
+          <p>You can unsubscribe from communication at any time. Details about data protection and your rights can be found in our <a href="https://www.robeta-campervans.com/legal-notice" target="_blank" rel="nofollow noopener noreferrer">privacy policy</a>.</p>
+          <p>By clicking submit below, you consent to allow Robeta to store and process the personal information submitted above to handle your request.</p>
+        </div>
+
         <button type="submit" class="pgc-form-submit">SUBMIT</button>
       </form>
     </div>
   `;
+
   const form = contentEl.querySelector('#pgc-contact-form');
+
+  // Fill HubSpot tracking hidden fields
+  try {
+    form.querySelector('[name="pageUri"]').value = window.location.href;
+    form.querySelector('[name="pageName"]').value = document.title;
+    form.querySelector('[name="pageId"]').value = '69674f7a8346b86879ce8dbc';
+    // Try to get HubSpot cookie for tracking
+    const hutk = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('hubspotutk='));
+    if (hutk) form.querySelector('[name="hutk"]').value = hutk.split('=')[1];
+  } catch (e) { /* optional */ }
+
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     handleFormSubmit(form);
@@ -563,27 +604,57 @@ function renderForm() {
 
 function handleFormSubmit(form) {
   const fd = new FormData(form);
-  const firstName = (fd.get('firstName') || '').toString().trim();
-  const lastName = (fd.get('lastName') || '').toString().trim();
+  const firstname = (fd.get('firstname') || '').toString().trim();
+  const lastname = (fd.get('lastname') || '').toString().trim();
   const email = (fd.get('email') || '').toString().trim();
+  const consentRequired = form.querySelector('[name="895486508"]');
 
-  if (!firstName || !lastName) { alert('Please enter your first and last name.'); return; }
+  if (!firstname || !lastname) { alert('Please enter your first and last name.'); return; }
   if (!email || !email.includes('@')) { alert('Please enter a valid email address.'); return; }
+  if (consentRequired && !consentRequired.checked) { alert('Please agree to the contact consent to continue.'); return; }
 
+  // Disable button to prevent double-submit
+  const submitBtn = form.querySelector('.pgc-form-submit');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'SUBMITTING...'; }
+
+  // Build contact object for webhook
   const contact = {
-    firstName,
-    lastName,
+    firstName: firstname,
+    lastName: lastname,
     email,
     phone: (fd.get('phone') || '').toString().trim(),
     country: (fd.get('country') || '').toString().trim(),
     zip: (fd.get('zip') || '').toString().trim()
   };
 
+  // 1) Submit to HubSpot via fetch (mirrors native form action)
+  submitToHubSpot(fd).then(() => {
+    log('HubSpot form submitted');
+  }).catch(err => {
+    console.warn('[PEGASUS] HubSpot submit error:', err);
+  });
+
+  // 2) Also send to Pipedream webhook (backup / automation)
   const payload = buildPayload(contact);
   postWebhook(payload);
 
+  // 3) Show success
   state.submitted = true;
   renderAll();
+}
+
+async function submitToHubSpot(formData) {
+  try {
+    const resp = await fetch(HUBSPOT_FORM_URL, {
+      method: 'POST',
+      body: formData,
+    });
+    log('HubSpot response status:', resp.status);
+    return resp;
+  } catch (err) {
+    console.warn('[PEGASUS] HubSpot submit error:', err);
+    throw err;
+  }
 }
 
 // ─────────────────────────────────────
