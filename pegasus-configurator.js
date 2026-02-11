@@ -633,6 +633,8 @@ function injectStyles() {
   style.textContent = `
 #pegasus-modal-overlay{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.88);display:none;justify-content:center;align-items:flex-start;overflow-y:auto;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif}
 #pegasus-modal-overlay.pgc-open{display:flex}
+#pegasus-modal-overlay input,#pegasus-modal-overlay select,#pegasus-modal-overlay textarea{color:#fff !important;-webkit-text-fill-color:#fff !important}
+#pegasus-modal-overlay input::placeholder{color:#888 !important;-webkit-text-fill-color:#888 !important}
 .pgc-modal{background:#1a1a1a;color:#fff;width:100%;max-width:920px;min-height:100vh;display:flex;flex-direction:column;position:relative}
 .pgc-header{padding:20px 30px;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center}
 .pgc-header h2{margin:0;font-size:20px;font-weight:700;letter-spacing:.04em;color:#fff}
