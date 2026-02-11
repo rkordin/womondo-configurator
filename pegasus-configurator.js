@@ -324,7 +324,61 @@ function switchCountry(countryLabel) {
     applySheetPrices(colKey);
   }
   renderAll();
+
+  // ── Bridge to Webflow native form country field ──
+  syncCountryToWebflow(countryLabel);
+
   log('Switched to', countryLabel, '→', colKey);
+}
+
+/** Push the configurator's country into the Webflow native form so embedded
+ *  scripts (EU dropdown, phone prefix, dealer auto-assign) pick it up. */
+function syncCountryToWebflow(countryLabel) {
+  try {
+    // 1. Native Webflow form hidden input (.field-country / #Country)
+    const wfCountryInput = document.querySelector('.conf-email-form #Country') ||
+                           document.querySelector('.conf-email-form .field-country input') ||
+                           document.querySelector('.conf-email-form [name="Country"]');
+    if (wfCountryInput) {
+      wfCountryInput.value = countryLabel;
+      wfCountryInput.dispatchEvent(new Event('input', { bubbles: true }));
+      wfCountryInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // 2. EU select (created by embedded script replacing .field-country)
+    const wfEuSelect = document.querySelector('.conf-email-form select[data-eu-country]');
+    if (wfEuSelect) {
+      // find matching option
+      const opt = Array.from(wfEuSelect.options).find(o =>
+        o.value.toLowerCase() === countryLabel.toLowerCase() ||
+        o.textContent.trim().toLowerCase() === countryLabel.toLowerCase()
+      );
+      if (opt) {
+        wfEuSelect.value = opt.value;
+        wfEuSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+
+    // 3. Also sync to the modal form's own country field if it exists
+    const modalCountryInput = document.querySelector('#pgc-contact-form .field-country input');
+    const modalEuSelect = document.querySelector('#pgc-contact-form select[data-eu-country]');
+    if (modalEuSelect) {
+      const opt2 = Array.from(modalEuSelect.options).find(o =>
+        o.value.toLowerCase() === countryLabel.toLowerCase()
+      );
+      if (opt2 && modalEuSelect.value !== opt2.value) {
+        modalEuSelect.value = opt2.value;
+        modalEuSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    } else if (modalCountryInput) {
+      modalCountryInput.value = countryLabel;
+      modalCountryInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    log('Country synced to Webflow form:', countryLabel);
+  } catch (e) {
+    log('Country sync error (non-critical):', e);
+  }
 }
 
 // ─────────────────────────────────────
@@ -392,10 +446,12 @@ function injectStyles() {
 .pgc-form{max-width:480px;margin:0 auto}
 .pgc-form h3{font-size:20px;font-weight:700;margin-bottom:8px;color:rgb(161,113,90)}
 .pgc-form p{font-size:14px;color:#888;margin-bottom:24px}
-.pgc-form input,.pgc-form select{width:100%;padding:14px 16px;border:2px solid #333;border-radius:8px;background:#222;color:#fff;font-size:14px;margin-bottom:12px;box-sizing:border-box;outline:none;transition:border-color .2s}
-.pgc-form input:focus,.pgc-form select:focus{border-color:rgb(161,113,90)}
-.pgc-form input::placeholder{color:#666}
+.pgc-form input,.pgc-form select,.pgc-form textarea{width:100%;padding:14px 16px;border:2px solid #333;border-radius:8px;background:#222;color:#fff !important;-webkit-text-fill-color:#fff !important;font-size:14px;margin-bottom:12px;box-sizing:border-box;outline:none;transition:border-color .2s}
+.pgc-form input:focus,.pgc-form select:focus{border-color:rgb(161,113,90) !important;box-shadow:none !important}
+.pgc-form input::placeholder{color:#666 !important;-webkit-text-fill-color:#666 !important}
 .pgc-form select{appearance:none;-webkit-appearance:none}
+.pgc-form .field-email,.pgc-form .field-country,.pgc-form .field-phone{display:contents}
+.pgc-form .field-email-msg,.pgc-form .field-phone-msg{margin-top:-8px;margin-bottom:8px;font-size:12px;line-height:1.3;color:#ff6b6b;display:none}
 .pgc-form-submit{width:100%;padding:16px;border:none;border-radius:8px;background:rgb(161,113,90);color:#fff;font-size:16px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.04em;margin-top:8px;transition:background .2s}
 .pgc-form-submit:hover{background:rgb(181,133,110)}
 .pgc-form-submit:disabled{opacity:.5;cursor:not-allowed}
@@ -740,36 +796,40 @@ function renderStep5() {
 function renderForm() {
   const summaryText = buildSummaryText();
   contentEl.innerHTML = `
-    <div class="pgc-form">
+    <div class="pgc-form conf-email-form">
       <h3>Get your configuration</h3>
       <p>Leave your contact details so we can send you the configuration and say hello.</p>
       <form id="pgc-contact-form"
             action="${esc(HUBSPOT_FORM_URL)}"
             method="POST"
             enctype="multipart/form-data"
-            data-name="WOMONDO PEGASUS CONFIGURATOR"
+            data-name="Womondo Configurator Dealer"
             data-wf-hs-form="webflowHubSpotForm"
             data-wf-page-id="69674f7a8346b86879ce8dbc"
             data-wf-element-id="afad9089-6572-2c8c-7157-779d36f5a563"
             novalidate>
 
         <div class="pgc-form-row">
-          <input type="text" name="firstname" placeholder="First name *" required />
-          <input type="text" name="lastname" placeholder="Last name *" required />
+          <input type="text" name="First Name" id="First-Name" placeholder="First name *" required data-wfhsfieldname="FormTextInput-firstname" />
+          <input type="text" name="Last Name" id="Last-Name" placeholder="Last name *" required data-wfhsfieldname="FormTextInput-lastname" />
         </div>
-        <input type="email" name="email" placeholder="Email *" required />
-        <input type="text" name="country" placeholder="Country / Region" />
+        <div class="field-email">
+          <input type="email" name="Email" id="Email" placeholder="Email *" required data-wfhsfieldname="FormTextInput-email" />
+        </div>
         <div class="pgc-form-row">
-          <input type="text" name="zip" placeholder="Postal code" />
-          <input type="tel" name="phone" placeholder="Phone number" />
+          <div class="field-country" style="flex:1">
+            <input type="text" name="Country" id="Country" placeholder="Country" value="${esc(state.country)}" data-wfhsfieldname="FormTextInput-country" />
+          </div>
+          <input type="text" name="ZIP CODE" id="ZIP-CODE" placeholder="Zip Code" style="flex:1" required data-wfhsfieldname="FormTextInput-zip" />
+        </div>
+        <div class="field-phone">
+          <input type="tel" name="Phone number" id="Phone-number" placeholder="Phone Number" required data-wfhsfieldname="FormTextInput-phone" />
         </div>
 
         <!-- Hidden fields for HubSpot -->
-        <textarea name="customes_configuration_and_price" style="display:none">${esc(summaryText)}</textarea>
-        <select name="contact_origin" hidden style="display:none">
-          <option value="WOMONOD CONFIGURATOR (rok)" selected>WOMONDO CONFIGURATOR (rok)</option>
-        </select>
-        <input type="hidden" name="assigned_dealer" value="" />
+        <textarea name="textarea field" class="textarea-field" id="textarea-field" style="display:none" data-wfhsfieldname="FormTextarea-customes_configuration_and_price">${esc(summaryText)}</textarea>
+        <input type="hidden" name="Origin" id="Origin" value="PEGASUS CONFIGURATOR" data-wfhsfieldname="FormTextInput-contact_origin" />
+        <input type="hidden" name="assigned dealer" id="assigned-dealer" value="" data-wfhsfieldname="FormTextInput-assigned_dealer" />
         <input type="hidden" name="hutk" value="" />
         <input type="hidden" name="ipAddress" value="" />
         <input type="hidden" name="pageUri" value="" />
@@ -811,13 +871,35 @@ function renderForm() {
     e.preventDefault();
     handleFormSubmit(form);
   });
+
+  // Let the embedded scripts (EU country dropdown, phone prefix, email validation,
+  // dealer auto-assign) discover and enhance these fields.
+  // The MutationObserver in the embedded scripts will fire automatically,
+  // but we also nudge it after a small delay.
+  setTimeout(() => {
+    // Fire a synthetic DOM mutation so scripts re-init
+    const marker = document.createElement('span');
+    marker.style.display = 'none';
+    form.appendChild(marker);
+    marker.remove();
+    log('Form rendered — embedded scripts notified');
+  }, 100);
+
+  // Pre-sync country from configurator state → country input
+  // (the embedded script will then convert it to EU select)
+  const countryInput = form.querySelector('#Country');
+  if (countryInput && state.country) {
+    countryInput.value = state.country;
+    countryInput.dispatchEvent(new Event('input', { bubbles: true }));
+    countryInput.dispatchEvent(new Event('change', { bubbles: true }));
+  }
 }
 
 function handleFormSubmit(form) {
   const fd = new FormData(form);
-  const firstname = (fd.get('firstname') || '').toString().trim();
-  const lastname = (fd.get('lastname') || '').toString().trim();
-  const email = (fd.get('email') || '').toString().trim();
+  const firstname = (fd.get('First Name') || '').toString().trim();
+  const lastname = (fd.get('Last Name') || '').toString().trim();
+  const email = (fd.get('Email') || '').toString().trim();
   const consentRequired = form.querySelector('[name="895486508"]');
 
   if (!firstname || !lastname) { alert('Please enter your first and last name.'); return; }
@@ -827,21 +909,39 @@ function handleFormSubmit(form) {
   const submitBtn = form.querySelector('.pgc-form-submit');
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'SUBMITTING...'; }
 
+  // Read values from the modal form (including any modifications by embedded scripts)
+  const phone = (form.querySelector('#Phone-number') || {}).value || '';
+  const country = (form.querySelector('#Country') || {}).value ||
+                  (form.querySelector('select[data-eu-country]') || {}).value || state.country;
+  const zip = (form.querySelector('#ZIP-CODE') || {}).value || '';
+  const assignedDealer = (form.querySelector('#assigned-dealer') || {}).value || '';
+
+  // Refresh the summary text with latest state
+  const summaryText = buildSummaryText();
+  const textareaEl = form.querySelector('.textarea-field');
+  if (textareaEl) textareaEl.value = summaryText;
+
   const contact = {
     firstName: firstname,
     lastName: lastname,
     email,
-    phone: (fd.get('phone') || '').toString().trim(),
-    country: (fd.get('country') || '').toString().trim(),
-    zip: (fd.get('zip') || '').toString().trim()
+    phone: phone.trim(),
+    country: country.trim(),
+    zip: zip.trim()
   };
 
-  submitToHubSpot(fd).then(() => {
-    log('HubSpot form submitted');
+  // ── 1) Bridge to native Webflow form & submit it ──
+  // This sends through Webflow → HubSpot + Email Notifications + Pipedream webhook
+  bridgeAndSubmitWebflowForm(contact, summaryText, assignedDealer);
+
+  // ── 2) Direct HubSpot POST (backup) ──
+  submitToHubSpot(form).then(() => {
+    log('Direct HubSpot form submitted (backup)');
   }).catch(err => {
-    console.warn('[PEGASUS] HubSpot submit error:', err);
+    console.warn('[PEGASUS] Direct HubSpot submit error:', err);
   });
 
+  // ── 3) Webhook (backup) ──
   const payload = buildPayload(contact);
   postWebhook(payload);
 
@@ -849,8 +949,91 @@ function handleFormSubmit(form) {
   renderAll();
 }
 
-async function submitToHubSpot(formData) {
+/** Fill the native Webflow form (.conf-email-form on the page behind the modal)
+ *  with all the values from the configurator and programmatically submit it.
+ *  This ensures the data flows through Webflow → HubSpot + Email Notifications + Pipedream. */
+function bridgeAndSubmitWebflowForm(contact, summaryText, assignedDealer) {
   try {
+    const wfForm = document.querySelector('.conf-email-form:not(#pgc-contact-form):not(.pgc-form)') ||
+                   document.querySelector('form[data-name="Womondo Configurator Dealer"]');
+    if (!wfForm) {
+      // Try finding it as a parent wrapper
+      const wrapper = document.querySelector('div.conf-email-form');
+      const inner = wrapper ? wrapper.querySelector('form') : null;
+      if (!inner) { log('Native Webflow form not found — skipping bridge'); return; }
+      fillAndSubmitForm(inner, contact, summaryText, assignedDealer);
+      return;
+    }
+    // If wfForm is a <form>, use it directly; if it's a wrapper div, find the form inside
+    const actualForm = wfForm.tagName === 'FORM' ? wfForm : wfForm.querySelector('form');
+    if (!actualForm) { log('Native Webflow <form> not found inside wrapper'); return; }
+    fillAndSubmitForm(actualForm, contact, summaryText, assignedDealer);
+  } catch (err) {
+    console.warn('[PEGASUS] Bridge to Webflow form error:', err);
+  }
+}
+
+function fillAndSubmitForm(form, contact, summaryText, assignedDealer) {
+  // Helper: set a field's value and fire events
+  function setField(selector, value) {
+    const el = form.querySelector(selector);
+    if (!el) return false;
+    el.value = value || '';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  }
+
+  // Fill visible fields
+  setField('#First-Name, [name="First Name"]', contact.firstName);
+  setField('#Last-Name, [name="Last Name"]', contact.lastName);
+  setField('#Email, .field-email input, [name="Email"]', contact.email);
+  setField('#Phone-number, .field-phone input, [name="Phone number"]', contact.phone);
+  setField('#ZIP-CODE, [name="ZIP CODE"]', contact.zip);
+
+  // Country: try EU select first, then text input
+  const euSelect = form.querySelector('select[data-eu-country]');
+  if (euSelect && contact.country) {
+    const opt = Array.from(euSelect.options).find(o =>
+      o.value.toLowerCase() === contact.country.toLowerCase() ||
+      o.textContent.trim().toLowerCase() === contact.country.toLowerCase()
+    );
+    if (opt) {
+      euSelect.value = opt.value;
+      euSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+  setField('#Country, .field-country input, [name="Country"]', contact.country);
+
+  // Hidden fields
+  setField('.textarea-field, #textarea-field, [name="textarea field"]', summaryText);
+  setField('#Origin, [name="Origin"]', 'PEGASUS CONFIGURATOR');
+  setField('#assigned-dealer, [name="assigned dealer"]', assignedDealer);
+
+  log('Webflow form fields populated — submitting...');
+
+  // Programmatically submit the native Webflow form
+  // Use requestSubmit() if available (respects form handlers), else .submit()
+  setTimeout(() => {
+    try {
+      if (typeof form.requestSubmit === 'function') {
+        form.requestSubmit();
+      } else {
+        form.submit();
+      }
+      log('Webflow native form submitted');
+    } catch (e) {
+      console.warn('[PEGASUS] Webflow form submit error:', e);
+      // Fallback: click the submit button
+      const btn = form.querySelector('[type="submit"], .conf-submit-button-form, button');
+      if (btn) btn.click();
+    }
+  }, 200); // small delay to let dealer auto-assign finish
+}
+
+async function submitToHubSpot(form) {
+  try {
+    const formData = new FormData(form);
     const resp = await fetch(HUBSPOT_FORM_URL, {
       method: 'POST',
       body: formData,
