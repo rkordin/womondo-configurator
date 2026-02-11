@@ -6,6 +6,7 @@
 // 1. CONFIG + DATA
 // ─────────────────────────────────────
 const CFG = window.PEGASUS_CFG || {};
+const CSV_URL = CFG.csvUrl || '';
 const WEBHOOK_URL = CFG.webhookUrl || '';
 const DEBUG = !!CFG.debug;
 const HUBSPOT_FORM_URL = 'https://hubspotonwebflow.com/api/forms/ca46efc7-fbe4-4b8e-ac19-65287ed58319';
@@ -14,57 +15,119 @@ const log = (...a) => { if (DEBUG) console.log('[PEGASUS]', ...a); };
 const fmtEUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 function formatEuro(n) { return fmtEUR.format(Number.isFinite(n) ? n : 0); }
 
+// Country label → CSV column header
+const COUNTRY_MAP = {
+  'Germany': 'DE', 'Austria': 'AT', 'Belgium': 'BE', 'Bulgaria': 'BG',
+  'Croatia': 'HR', 'Czech Republic': 'CZ', 'Denmark': 'DK', 'Estonia': 'EE',
+  'Finland': 'FI', 'France': 'FR', 'Greece': 'GR', 'Hungary': 'HU',
+  'Italy': 'IT', 'Netherlands': 'NL', 'Poland': 'PL', 'Portugal': 'PT',
+  'Romania': 'RO', 'Slovenia': 'SI', 'Spain': 'ES', 'Sweden': 'SE'
+};
+const COUNTRY_LIST = Object.keys(COUNTRY_MAP);
+
+// MO_CODE → item id mapping (used to look up CSV row)
+const CODE_MAP = {
+  // Models
+  'P3GR3G':   { cat: 'models',    id: 'regular' },
+  'P3GPR0':   { cat: 'models',    id: 'pro' },
+  // Upgrades
+  'UP4U70':   { cat: 'upgrades',  id: 'auto-gearbox' },
+  'UP190HP':  { cat: 'upgrades',  id: '190hp' },
+  'UP4X4':    { cat: 'upgrades',  id: '4x4' },
+  'UP41RM47': { cat: 'upgrades',  id: 'airmatic' },
+  // Colours
+  'C0L53L3N': { cat: 'colours',   id: 'selenit-grey' },
+  'C0L73N0R': { cat: 'colours',   id: 'tenorit-grey' },
+  'C0L0B51D': { cat: 'colours',   id: 'obsidian-black' },
+  'C0LBLU3G': { cat: 'colours',   id: 'blue-grey' },
+  'C0LP3BBL': { cat: 'colours',   id: 'pebble-grey' },
+  'C0LWH173': { cat: 'colours',   id: 'white' },
+  // Packages
+  'PKGP0PUP': { cat: 'packages',  id: 'popup-roof' },
+  'PKG5M4R7': { cat: 'packages',  id: 'smart-tv' },
+  'PKGW1N73': { cat: 'packages',  id: 'winter' },
+  'PKG0FFR0': { cat: 'packages',  id: 'offroad' },
+  'PKG0FCL5': { cat: 'packages',  id: 'offroad-popup' },
+  '0P751D33': { cat: 'packages',  id: 'side-extension' },
+  '0P741RL1': { cat: 'packages',  id: 'airline' },
+  // Equipment
+  '3Q3X7G45': { cat: 'equipment', id: 'ext-gas' },
+  '3Q3X75H0': { cat: 'equipment', id: 'ext-shower' },
+  '3Q150F1X': { cat: 'equipment', id: 'isofix' },
+  '3Q70WH00': { cat: 'equipment', id: 'tow-hook' },
+  '3Q3X7R4B': { cat: 'equipment', id: 'extra-bed' },
+  '3QGR3YW4': { cat: 'equipment', id: 'grey-tank-heat' },
+  '3QB4CKD0': { cat: 'equipment', id: 'back-window' },
+  '3QH3473D': { cat: 'equipment', id: 'heated-seats' },
+  '3QP3RF3C': { cat: 'equipment', id: 'perfectvan-toilet' },
+  '3QCL354N': { cat: 'equipment', id: 'clesana-toilet' },
+  '3Q7RUM44': { cat: 'equipment', id: 'truma-4de' },
+  '3Q4LUWH3': { cat: 'equipment', id: 'alu-wheels' },
+  '3QR00F4C': { cat: 'equipment', id: 'roof-ac' },
+  '3Q4L4RM7': { cat: 'equipment', id: 'alarm-premium' },
+  '3Q7H17R0': { cat: 'equipment', id: 'profinder' },
+  '3Q4L4DTB': { cat: 'equipment', id: 'alarm-standard' },
+  // Transport
+  '7R4N5P0R': { cat: 'transport', id: 'transport' }
+};
+
+// Also build reverse lookup: "models/regular" → "P3GR3G"
+const ID_TO_CODE = {};
+for (const [code, ref] of Object.entries(CODE_MAP)) {
+  ID_TO_CODE[ref.cat + '/' + ref.id] = code;
+}
+
 const DATA = {
   models: [
-    { id: 'regular', name: 'REGULAR', price: 99790, hp: '150 HP', trans: 'Manual transmission',
+    { id: 'regular', name: 'REGULAR', price: 99790, code: 'P3GR3G', hp: '150 HP', trans: 'Manual transmission',
       desc: 'Pegasus Base',
       features: ['New Womondo Bathroom','New swivelling table','Rearview camera','Radio with Android Auto & Apple CarPlay','Truma 4D heating','Robeta Air Furniture','Driver compartment blackout','Awning','135 Ah Lithium battery','Solar package with inverter & 130 Wp solar panel','Maxxfan in the sleeping area'] },
-    { id: 'pro', name: 'PRO', price: 115390, hp: '150 HP', trans: 'Automatic transmission',
+    { id: 'pro', name: 'PRO', price: 115390, code: 'P3GPR0', hp: '150 HP', trans: 'Automatic transmission',
       desc: 'Pegasus PRO',
       features: ['Active Brake Assist','93-litre main fuel tank','Longitudinal beam reinforcement','High-performance LED headlights','Exit & reversing lights underneath','Electrically operated right sliding door','Heat-insulated front windscreen','Painted bumper & corners','Cooling grille in vehicle colour','Driver & passenger seat heating','Leather steering wheel','Acoustic package','Additional warm air heating, electric','Automatic air conditioning Thermotronic','Digital radio (DAB)','Parking kit with 360\u00b0 camera','Multifunction steering wheel','Blind Spot Assist','Active Lane Keep Assist','Active Distance Assist DISTRONIC (ACC)','Rain sensor','Low-beam Assist','Wireless remote control multi-function keys','Live traffic information (pre-wiring)'] }
   ],
   upgrades: [
-    { id: 'auto-gearbox', name: 'Automatic gearbox', price: 2999, requires: [], requiresModel: null },
-    { id: '190hp', name: '190 hp upgrade (only with automatic gearbox)', price: 4299, requires: ['auto-gearbox'], requiresModel: null },
-    { id: '4x4', name: '4\u00d74 drive option (only with automatic, 190 hp and PRO)', price: 8499, requires: ['auto-gearbox', '190hp'], requiresModel: 'pro' },
-    { id: 'airmatic', name: 'AIRMATIC air suspension Mercedes-Benz', price: 4099, requires: [], requiresModel: null }
+    { id: 'auto-gearbox', name: 'Automatic gearbox', price: 2999, code: 'UP4U70', requires: [], requiresModel: null },
+    { id: '190hp', name: '190 hp upgrade (only with automatic gearbox)', price: 4299, code: 'UP190HP', requires: ['auto-gearbox'], requiresModel: null },
+    { id: '4x4', name: '4\u00d74 drive option (only with automatic, 190 hp and PRO)', price: 8499, code: 'UP4X4', requires: ['auto-gearbox', '190hp'], requiresModel: 'pro' },
+    { id: 'airmatic', name: 'AIRMATIC air suspension Mercedes-Benz', price: 4099, code: 'UP41RM47', requires: [], requiresModel: null }
   ],
   colours: [
-    { id: 'selenit-grey', name: 'Selenit Grey', price: 1999, hex: '#7C7D7E' },
-    { id: 'tenorit-grey', name: 'Tenorit Grey', price: 1999, hex: '#6E6E6E' },
-    { id: 'obsidian-black', name: 'Obsidian Black', price: 1999, hex: '#1C1C1C' },
-    { id: 'blue-grey', name: 'Blue Grey', price: 899, hex: '#6B7B8D' },
-    { id: 'pebble-grey', name: 'Pebble Grey', price: 899, hex: '#B0AFA7' },
-    { id: 'white', name: 'White (standard)', price: 0, hex: '#F5F5F5' }
+    { id: 'selenit-grey', name: 'Selenit Grey', price: 1999, code: 'C0L53L3N', hex: '#7C7D7E' },
+    { id: 'tenorit-grey', name: 'Tenorit Grey', price: 1999, code: 'C0L73N0R', hex: '#6E6E6E' },
+    { id: 'obsidian-black', name: 'Obsidian Black', price: 1999, code: 'C0L0B51D', hex: '#1C1C1C' },
+    { id: 'blue-grey', name: 'Blue Grey', price: 899, code: 'C0LBLU3G', hex: '#6B7B8D' },
+    { id: 'pebble-grey', name: 'Pebble Grey', price: 899, code: 'C0LP3BBL', hex: '#B0AFA7' },
+    { id: 'white', name: 'White (standard)', price: 0, code: 'C0LWH173', hex: '#F5F5F5' }
   ],
   packages: [
-    { id: 'popup-roof', name: 'POP-UP roof (extra sleeping area \u2014 double bed 120\u00d7200 with mattress)', price: 9899 },
-    { id: 'smart-tv', name: 'Smart TV package (Smart TV / bracket / 4G LTE antenna + router kit)', price: 1999 },
-    { id: 'winter', name: 'Winter Package (Truma 6D + 2kW electric heating, high altitude setup, partly insulated driver cabin, heated grey water tank)', price: 1499 },
-    { id: 'offroad', name: 'Off Road Pack', price: 8999 },
-    { id: 'offroad-popup', name: 'Off Road pack with Pop-up Roof (pop-up roof not included)', price: 6999 },
-    { id: 'side-extension', name: 'Side extension sleeping area (left + right)', price: 3999 },
-    { id: 'airline', name: 'Airline system', price: 0 }
+    { id: 'popup-roof', name: 'POP-UP roof (extra sleeping area \u2014 double bed 120\u00d7200 with mattress)', price: 9899, code: 'PKGP0PUP' },
+    { id: 'smart-tv', name: 'Smart TV package (Smart TV / bracket / 4G LTE antenna + router kit)', price: 1999, code: 'PKG5M4R7' },
+    { id: 'winter', name: 'Winter Package (Truma 6D + 2kW electric heating, high altitude setup, partly insulated driver cabin, heated grey water tank)', price: 1499, code: 'PKGW1N73' },
+    { id: 'offroad', name: 'Off Road Pack', price: 8999, code: 'PKG0FFR0' },
+    { id: 'offroad-popup', name: 'Off Road pack with Pop-up Roof (pop-up roof not included)', price: 6999, code: 'PKG0FCL5' },
+    { id: 'side-extension', name: 'Side extension sleeping area (left + right)', price: 3999, code: '0P751D33' },
+    { id: 'airline', name: 'Airline system', price: 0, code: '0P741RL1' }
   ],
   equipment: [
-    { id: 'ext-gas', name: 'External gas connection', price: 249 },
-    { id: 'ext-shower', name: 'External hot & cold shower connection', price: 249 },
-    { id: 'isofix', name: 'Isofix', price: 249 },
-    { id: 'tow-hook', name: 'Tow hook', price: 1099 },
-    { id: 'extra-bed', name: 'Extra bed in the dining area', price: 999 },
-    { id: 'grey-tank-heat', name: 'Heating of grey water tank', price: 499 },
-    { id: 'back-window', name: 'Back door window 500\u00d7450 (per side)', price: 489 },
-    { id: 'heated-seats', name: 'Heated seats', price: 599 },
-    { id: 'perfectvan-toilet', name: 'PerfectVan separation toilet', price: 2089 },
-    { id: 'clesana-toilet', name: 'Clesana toilet', price: 2199 },
-    { id: 'truma-4de', name: 'Truma 4DE heating', price: 599 },
-    { id: 'alu-wheels', name: '16" ALU wheels (Dezent KH BLACK)', price: 1399 },
-    { id: 'roof-ac', name: '2200W roof air conditioner', price: 2499 },
-    { id: 'alarm-premium', name: 'Premium alarm system Thitronik', price: 1099 },
-    { id: 'profinder', name: 'Thitronik Profinder', price: 699 },
-    { id: 'alarm-standard', name: 'Thitronik standard alarm system \u2014 door only', price: 799 }
+    { id: 'ext-gas', name: 'External gas connection', price: 249, code: '3Q3X7G45' },
+    { id: 'ext-shower', name: 'External hot & cold shower connection', price: 249, code: '3Q3X75H0' },
+    { id: 'isofix', name: 'Isofix', price: 249, code: '3Q150F1X' },
+    { id: 'tow-hook', name: 'Tow hook', price: 1099, code: '3Q70WH00' },
+    { id: 'extra-bed', name: 'Extra bed in the dining area', price: 999, code: '3Q3X7R4B' },
+    { id: 'grey-tank-heat', name: 'Heating of grey water tank', price: 499, code: '3QGR3YW4' },
+    { id: 'back-window', name: 'Back door window 500\u00d7450 (per side)', price: 489, code: '3QB4CKD0' },
+    { id: 'heated-seats', name: 'Heated seats', price: 599, code: '3QH3473D' },
+    { id: 'perfectvan-toilet', name: 'PerfectVan separation toilet', price: 2089, code: '3QP3RF3C' },
+    { id: 'clesana-toilet', name: 'Clesana toilet', price: 2199, code: '3QCL354N' },
+    { id: 'truma-4de', name: 'Truma 4DE heating', price: 599, code: '3Q7RUM44' },
+    { id: 'alu-wheels', name: '16" ALU wheels (Dezent KH BLACK)', price: 1399, code: '3Q4LUWH3' },
+    { id: 'roof-ac', name: '2200W roof air conditioner', price: 2499, code: '3QR00F4C' },
+    { id: 'alarm-premium', name: 'Premium alarm system Thitronik', price: 1099, code: '3Q4L4RM7' },
+    { id: 'profinder', name: 'Thitronik Profinder', price: 699, code: '3Q7H17R0' },
+    { id: 'alarm-standard', name: 'Thitronik standard alarm system \u2014 door only', price: 799, code: '3Q4L4DTB' }
   ],
-  transport: { name: 'Transport costs', price: 1789 }
+  transport: { id: 'transport', name: 'Transport costs', price: 1789, code: '7R4N5P0R' }
 };
 
 const STEPS = [
@@ -76,7 +139,122 @@ const STEPS = [
 ];
 
 // ─────────────────────────────────────
-// 2. STATE
+// 2. SHEET / CSV
+// ─────────────────────────────────────
+const sheet = {
+  loaded: false,
+  headerRaw: [],
+  headerUp: [],
+  tableRows: [],
+  byCol: new Map()  // colKey → { colIndex, map: Map<MO_CODE, price> }
+};
+
+function parseCSV(text) {
+  const rows = [];
+  let i = 0, field = '', row = [], inQuotes = false;
+  while (i < text.length) {
+    const c = text[i];
+    if (c === '"') {
+      if (inQuotes && text[i + 1] === '"') { field += '"'; i += 2; continue; }
+      inQuotes = !inQuotes; i++; continue;
+    }
+    if (!inQuotes && (c === ',' || c === '\n' || c === '\r')) {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); field = '';
+      if (c === '\n' || c === '\r') {
+        if (row.length > 1 || row[0] !== '') rows.push(row);
+        row = [];
+      }
+      i++; continue;
+    }
+    field += c; i++;
+  }
+  row.push(field);
+  if (row.length > 1 || row[0] !== '') rows.push(row);
+  return rows;
+}
+
+const up = (s) => (s || '').toString().replace(/\u00a0/g, ' ').trim().toUpperCase();
+const normHeader = (h) => up(h).replace(/[^A-Z0-9]/g, '');
+
+function parseNumberLoose(val) {
+  if (val == null) return NaN;
+  const s = val.toString().replace(/\s/g, '').replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+async function loadSheet() {
+  if (!CSV_URL) { log('No csvUrl — using hardcoded prices'); return; }
+  try {
+    const res = await fetch(CSV_URL + (CSV_URL.includes('?') ? '&' : '?') + '_ts=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error('CSV fetch failed: ' + res.status);
+    const csv = await res.text();
+    const table = parseCSV(csv);
+    if (!table.length) throw new Error('CSV empty');
+
+    sheet.headerRaw = table[0];
+    sheet.headerUp = sheet.headerRaw.map(h => up(h));
+    sheet.tableRows = table.slice(1);
+
+    const codeIdx = sheet.headerUp.indexOf('MO_CODE');
+    if (codeIdx < 0) throw new Error('CSV must contain MO_CODE header');
+
+    const META = new Set(['MO_CODE','MODEL','BRAND','TRANS','ENGINE','PRICE','DESCRIPTION']);
+    sheet.byCol.clear();
+
+    sheet.headerRaw.forEach((h, colIndex) => {
+      const H = up(h);
+      if (colIndex === codeIdx) return;
+      if (META.has(H)) return;
+
+      const colKey = normHeader(h);
+      const map = new Map();
+      for (const r of sheet.tableRows) {
+        const code = up(r[codeIdx]);
+        const gross = parseNumberLoose(r[colIndex]);
+        if (code && Number.isFinite(gross) && gross >= 0) map.set(code, gross);
+      }
+      sheet.byCol.set(colKey, { colIndex, map });
+    });
+
+    sheet.loaded = true;
+    log('Sheet loaded. Columns:', [...sheet.byCol.keys()]);
+
+    // Apply DE prices from sheet on load
+    applySheetPrices('DE');
+  } catch (err) {
+    console.warn('[PEGASUS] Sheet load error:', err);
+    log('Falling back to hardcoded prices');
+  }
+}
+
+function applySheetPrices(colKey) {
+  const col = sheet.byCol.get(normHeader(colKey));
+  if (!col) { log('Column not found:', colKey); return; }
+
+  state.countryCol = normHeader(colKey);
+
+  // Walk all DATA categories and update .price from sheet
+  for (const [code, ref] of Object.entries(CODE_MAP)) {
+    const sheetPrice = col.map.get(code);
+    if (!Number.isFinite(sheetPrice)) continue;
+
+    if (ref.cat === 'transport') {
+      DATA.transport.price = sheetPrice;
+      continue;
+    }
+    const list = DATA[ref.cat];
+    if (!list) continue;
+    const item = list.find(x => x.id === ref.id);
+    if (item) item.price = sheetPrice;
+  }
+
+  log('Prices applied for column:', colKey);
+}
+
+// ─────────────────────────────────────
+// 3. STATE
 // ─────────────────────────────────────
 const state = {
   model: null,
@@ -86,11 +264,13 @@ const state = {
   equipment: new Set(),
   step: 1,
   formVisible: false,
-  submitted: false
+  submitted: false,
+  country: 'Germany',
+  countryCol: 'DE'
 };
 
 // ─────────────────────────────────────
-// 3. HELPERS
+// 4. HELPERS
 // ─────────────────────────────────────
 function getPrice(category, id) {
   if (category === 'transport') return DATA.transport.price;
@@ -134,8 +314,21 @@ function esc(s) {
   return d.innerHTML;
 }
 
+function switchCountry(countryLabel) {
+  const colKey = COUNTRY_MAP[countryLabel];
+  if (!colKey) return;
+  state.country = countryLabel;
+  state.countryCol = colKey;
+
+  if (sheet.loaded) {
+    applySheetPrices(colKey);
+  }
+  renderAll();
+  log('Switched to', countryLabel, '→', colKey);
+}
+
 // ─────────────────────────────────────
-// 4. CSS INJECTION
+// 5. CSS INJECTION
 // ─────────────────────────────────────
 function injectStyles() {
   if (document.getElementById('pgc-styles')) return;
@@ -184,9 +377,12 @@ function injectStyles() {
 .pgc-colour-price{font-size:13px;color:rgb(161,113,90)}
 .pgc-transport-row{display:flex;justify-content:space-between;padding:14px 18px;background:#1e1e1e;border:1px dashed #444;border-radius:10px;margin-top:16px;color:#999;font-size:14px}
 .pgc-transport-row span:last-child{color:rgb(161,113,90);font-weight:600}
-.pgc-total-bar{position:sticky;bottom:0;background:#111;border-top:1px solid #333;padding:16px 30px;display:flex;align-items:center;justify-content:space-between;gap:16px;z-index:10}
+.pgc-total-bar{position:sticky;bottom:0;background:#111;border-top:1px solid #333;padding:16px 30px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:10;flex-wrap:wrap}
+.pgc-total-left{display:flex;align-items:center;gap:12px;flex-shrink:0}
 .pgc-total-label{font-size:14px;color:#888}
-.pgc-total-price{font-size:22px;font-weight:800;color:#fff;flex:1;text-align:right;padding-right:20px}
+.pgc-total-price{font-size:22px;font-weight:800;color:#fff;flex:1;text-align:right;padding-right:16px;white-space:nowrap}
+.pgc-country-select{background:#222;color:#fff;border:2px solid #444;border-radius:8px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;outline:none;transition:border-color .2s;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23999' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+.pgc-country-select:focus{border-color:rgb(161,113,90)}
 .pgc-nav-btns{display:flex;gap:10px}
 .pgc-btn{padding:12px 28px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:.03em}
 .pgc-btn-primary{background:rgb(161,113,90);color:#fff}
@@ -224,24 +420,26 @@ function injectStyles() {
 .pgc-content{padding:20px}
 .pgc-stepper{padding:12px 16px;gap:6px}
 .pgc-step-pill{padding:6px 12px;font-size:11px}
-.pgc-total-bar{padding:12px 16px;flex-wrap:wrap}
-.pgc-total-price{font-size:18px;padding-right:10px}
+.pgc-total-bar{padding:12px 16px}
+.pgc-total-price{font-size:18px;padding-right:8px}
 .pgc-nav-btns{width:100%;justify-content:stretch}
 .pgc-nav-btns .pgc-btn{flex:1}
 .pgc-form-row{flex-direction:column;gap:0}
+.pgc-country-select{width:100%;margin-bottom:8px}
 }
 `;
   document.head.appendChild(style);
 }
 
 // ─────────────────────────────────────
-// 5. MODAL STRUCTURE
+// 6. MODAL STRUCTURE
 // ─────────────────────────────────────
 let modalEl = null;
 let contentEl = null;
 let stepperEl = null;
 let totalPriceEl = null;
 let navBtnsEl = null;
+let countrySelectEl = null;
 
 function createModal() {
   const overlay = document.createElement('div');
@@ -255,7 +453,12 @@ function createModal() {
       <div class="pgc-stepper"></div>
       <div class="pgc-content"></div>
       <div class="pgc-total-bar">
-        <span class="pgc-total-label">Total (incl. VAT)</span>
+        <div class="pgc-total-left">
+          <span class="pgc-total-label">Total (incl. VAT)</span>
+          <select class="pgc-country-select" aria-label="Country">
+            ${COUNTRY_LIST.map(c => `<option value="${esc(c)}"${c === 'Germany' ? ' selected' : ''}>${esc(c)}</option>`).join('')}
+          </select>
+        </div>
         <span class="pgc-total-price">0,00 &euro;</span>
         <div class="pgc-nav-btns"></div>
       </div>
@@ -267,6 +470,12 @@ function createModal() {
   stepperEl = overlay.querySelector('.pgc-stepper');
   totalPriceEl = overlay.querySelector('.pgc-total-price');
   navBtnsEl = overlay.querySelector('.pgc-nav-btns');
+  countrySelectEl = overlay.querySelector('.pgc-country-select');
+
+  // Country switcher
+  countrySelectEl.addEventListener('change', () => {
+    switchCountry(countrySelectEl.value);
+  });
 
   overlay.querySelector('.pgc-close').addEventListener('click', closeModal);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
@@ -275,6 +484,8 @@ function createModal() {
 
 function openModal() {
   resetState();
+  // Sync country select with state
+  if (countrySelectEl) countrySelectEl.value = state.country;
   modalEl.classList.add('pgc-open');
   document.body.style.overflow = 'hidden';
   renderAll();
@@ -294,10 +505,11 @@ function resetState() {
   state.step = 1;
   state.formVisible = false;
   state.submitted = false;
+  // Keep country as-is (don't reset on re-open)
 }
 
 // ─────────────────────────────────────
-// 6. RENDER
+// 7. RENDER
 // ─────────────────────────────────────
 function renderAll() {
   renderStepper();
@@ -523,7 +735,7 @@ function renderStep5() {
 }
 
 // ─────────────────────────────────────
-// 7. FORM  (HubSpot-connected)
+// 8. FORM  (HubSpot-connected)
 // ─────────────────────────────────────
 function renderForm() {
   const summaryText = buildSummaryText();
@@ -591,7 +803,6 @@ function renderForm() {
     form.querySelector('[name="pageUri"]').value = window.location.href;
     form.querySelector('[name="pageName"]').value = document.title;
     form.querySelector('[name="pageId"]').value = '69674f7a8346b86879ce8dbc';
-    // Try to get HubSpot cookie for tracking
     const hutk = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('hubspotutk='));
     if (hutk) form.querySelector('[name="hutk"]').value = hutk.split('=')[1];
   } catch (e) { /* optional */ }
@@ -613,11 +824,9 @@ function handleFormSubmit(form) {
   if (!email || !email.includes('@')) { alert('Please enter a valid email address.'); return; }
   if (consentRequired && !consentRequired.checked) { alert('Please agree to the contact consent to continue.'); return; }
 
-  // Disable button to prevent double-submit
   const submitBtn = form.querySelector('.pgc-form-submit');
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'SUBMITTING...'; }
 
-  // Build contact object for webhook
   const contact = {
     firstName: firstname,
     lastName: lastname,
@@ -627,18 +836,15 @@ function handleFormSubmit(form) {
     zip: (fd.get('zip') || '').toString().trim()
   };
 
-  // 1) Submit to HubSpot via fetch (mirrors native form action)
   submitToHubSpot(fd).then(() => {
     log('HubSpot form submitted');
   }).catch(err => {
     console.warn('[PEGASUS] HubSpot submit error:', err);
   });
 
-  // 2) Also send to Pipedream webhook (backup / automation)
   const payload = buildPayload(contact);
   postWebhook(payload);
 
-  // 3) Show success
   state.submitted = true;
   renderAll();
 }
@@ -658,12 +864,13 @@ async function submitToHubSpot(formData) {
 }
 
 // ─────────────────────────────────────
-// 8. PAYLOAD + WEBHOOK
+// 9. PAYLOAD + WEBHOOK
 // ─────────────────────────────────────
 function buildSummaryText() {
   const lines = [];
   lines.push('=== PEGASUS CONFIGURATION ===');
   lines.push('Date: ' + new Date().toLocaleDateString('de-DE'));
+  lines.push('Country: ' + state.country + ' (' + state.countryCol + ')');
   lines.push('\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
   const model = DATA.models.find(m => m.id === state.model);
   lines.push('MODEL: Womondo Pegasus ' + (model ? model.name : 'N/A'));
@@ -715,6 +922,8 @@ function buildPayload(contact) {
   return {
     source: 'pegasus-configurator',
     timestamp: new Date().toISOString(),
+    country: state.country,
+    countryCol: state.countryCol,
     contact,
     configuration: {
       model: state.model,
@@ -722,19 +931,19 @@ function buildPayload(contact) {
       modelPrice: model ? model.price : 0,
       upgrades: [...state.upgrades].map(id => {
         const u = DATA.upgrades.find(x => x.id === id);
-        return { id, name: u?.name, price: u?.price || 0 };
+        return { id, name: u?.name, price: u?.price || 0, code: u?.code };
       }),
       colour: state.colour ? (() => {
         const c = DATA.colours.find(x => x.id === state.colour);
-        return { id: state.colour, name: c?.name, price: c?.price || 0 };
+        return { id: state.colour, name: c?.name, price: c?.price || 0, code: c?.code };
       })() : null,
       packages: [...state.packages].map(id => {
         const p = DATA.packages.find(x => x.id === id);
-        return { id, name: p?.name, price: p?.price || 0 };
+        return { id, name: p?.name, price: p?.price || 0, code: p?.code };
       }),
       equipment: [...state.equipment].map(id => {
         const e = DATA.equipment.find(x => x.id === id);
-        return { id, name: e?.name, price: e?.price || 0 };
+        return { id, name: e?.name, price: e?.price || 0, code: e?.code };
       }),
       transport: DATA.transport
     },
@@ -766,7 +975,7 @@ async function postWebhook(payload) {
 }
 
 // ─────────────────────────────────────
-// 9. SUCCESS + PDF
+// 10. SUCCESS + PDF
 // ─────────────────────────────────────
 function renderSuccess() {
   contentEl.innerHTML = `
@@ -839,6 +1048,7 @@ async function generatePDF() {
     // Meta
     setInk();
     y = textW('Date: ' + new Date().toLocaleDateString('de-DE'), MX, y, maxW, 11, false);
+    y = textW('Country: ' + state.country + ' (' + state.countryCol + ')', MX, y, maxW, 11, false);
     y += 2;
     y = hr(y);
 
@@ -950,11 +1160,14 @@ async function generatePDF() {
 }
 
 // ─────────────────────────────────────
-// 10. INIT
+// 11. INIT
 // ─────────────────────────────────────
-function initialize() {
+async function initialize() {
   injectStyles();
   createModal();
+
+  // Load Google Sheet prices (async, non-blocking)
+  await loadSheet();
 
   // Bind the CTA button on the Pegasus page
   const btn = document.getElementById('pegasus-configure-btn');
