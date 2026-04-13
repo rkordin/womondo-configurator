@@ -290,7 +290,7 @@ if (subCard.querySelector('.option-price')) subCard.querySelector('.option-price
 if (subCard.querySelector('.sub-option-price')) subCard.querySelector('.sub-option-price').textContent = txt;
 }
 
-const MODEL_TO_LENG = { 540: 'LENGOL2', 600: 'LENGOL3', 636: 'LENGOL4' };
+const MODEL_TO_LENG = { 540: 'LENG0L2', 600: 'LENG0L3', 636: 'LENG0L4' };
 
 function applyStep1BasePrices(codeMap) {
 const row0 = getAllRows()[0];
