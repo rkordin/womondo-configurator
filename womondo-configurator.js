@@ -311,7 +311,7 @@ const hp180 = codeMap.get('CH0211');
 if (!Number.isFinite(auto) || !Number.isFinite(hp180)) return;
 
 const addon140 = auto;
-const addon180 = auto + hp180;
+const addon180 = hp180;
 
 row1.querySelectorAll('.conf-card').forEach(brandCard => {
 brandCard.querySelectorAll('.conf-sub-card').forEach(sub => {
