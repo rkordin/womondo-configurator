@@ -276,18 +276,30 @@ log('Code lock done');
 // APPLY PRICES
 // -----------------------------
 function setModelBase(card, gross) {
-const priceEl = card?.querySelector('.conf-price');
-if (!priceEl) return;
-priceEl.setAttribute('data-gross-base', String(gross));
-priceEl.textContent = formatEuro(gross);
+if (!card) return;
+const priceEl = card.querySelector('.conf-price');
+const txt = formatEuro(gross);
+if (priceEl) {
+  priceEl.setAttribute('data-gross-base', String(gross));
+  priceEl.textContent = txt;
+}
+card.querySelectorAll('h1,h2,h3,h4,h5').forEach(el => {
+  if (/LENG[0O]L[234]/i.test(el.textContent)) el.textContent = txt;
+});
 }
 
 function setAddon(subCard, grossAddon) {
 if (!subCard) return;
 subCard.setAttribute('data-option-gross-base', String(grossAddon));
 const txt = '+' + formatEuro(grossAddon);
-if (subCard.querySelector('.option-price')) subCard.querySelector('.option-price').textContent = txt;
-if (subCard.querySelector('.sub-option-price')) subCard.querySelector('.sub-option-price').textContent = txt;
+const els = subCard.querySelectorAll('.option-price, .sub-option-price');
+if (els.length) {
+  els.forEach(el => { el.textContent = txt; });
+  return;
+}
+subCard.querySelectorAll('h1,h2,h3,h4,h5,.price,.conf-price').forEach(el => {
+  if (/CH0(105|211)/i.test(el.textContent)) el.textContent = txt;
+});
 }
 
 const MODEL_TO_LENG = { 540: 'LENG0L2', 600: 'LENG0L3', 636: 'LENG0L4' };
@@ -298,17 +310,22 @@ if (!row0 || !codeMap) return;
 
 row0.querySelectorAll('.conf-card').forEach(card => {
 const priceEl = card.querySelector('.conf-price');
-let code = extractCode(priceEl?.getAttribute('data-price-code'))
-  || extractCode(priceEl?.textContent || '');
+const candidates = [];
+const c1 = extractCode(priceEl?.getAttribute('data-price-code'));
+const c2 = extractCode(priceEl?.textContent || '');
+if (c1) candidates.push(c1, c1.replace(/O/g, '0'), c1.replace(/0/g, 'O'));
+if (c2) candidates.push(c2, c2.replace(/O/g, '0'), c2.replace(/0/g, 'O'));
+const m = modelFromCard(card);
+if (m) candidates.push(MODEL_TO_LENG[Number(m)]);
 
-if (!code) {
-  const m = modelFromCard(card);
-  code = m ? MODEL_TO_LENG[Number(m)] : null;
+let gross;
+for (const code of candidates) {
+  if (!code) continue;
+  const v = codeMap.get(code);
+  if (Number.isFinite(v)) { gross = v; break; }
 }
-
-if (!code) return;
-const gross = codeMap.get(code);
 if (Number.isFinite(gross)) setModelBase(card, gross);
+else log('Step1: no price match for card, tried:', candidates);
 });
 }
 
