@@ -1263,8 +1263,11 @@ function handleFormSubmit(form) {
     assignedDealer: assignedDealer.trim()
   };
 
-  // ── 1) Bridge to native Webflow form & submit it ──
-  bridgeAndSubmitWebflowForm(contact, summaryText, assignedDealer);
+  // ── 1) [DISABLED] Webflow form bridge caused duplicate HubSpot contacts.
+  //    The Webflow native form auto-submits to HubSpot via the Webflow-HubSpot
+  //    integration, AND we also POST directly in step (2) below — resulting in
+  //    2 contacts per submission. Direct POST + webhook cover all needs.
+  // bridgeAndSubmitWebflowForm(contact, summaryText, assignedDealer);
 
   // ── 2) Direct HubSpot POST ──
   submitToHubSpot(contact, summaryText, assignedDealer).then(() => {
