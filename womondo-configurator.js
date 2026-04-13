@@ -302,23 +302,27 @@ if (Number.isFinite(manual)) setModelBase(card, manual);
 });
 }
 
-function applyStep2AddonsForModel(modelNum, colIndex) {
+function applyStep2AddonsForModel(modelNum, codeMap) {
 const row1 = getAllRows()[1];
-if (!row1) return;
+if (!row1 || !codeMap) return;
 
-const manual = getConfigPrice(modelNum, 'MANUAL', '140HP', colIndex);
-const auto140 = getConfigPrice(modelNum, 'AUTOMATIC', '140HP', colIndex);
-const auto180 = getConfigPrice(modelNum, 'AUTOMATIC', '180HP', colIndex);
-if (!Number.isFinite(manual) || !Number.isFinite(auto140) || !Number.isFinite(auto180)) return;
+const auto = codeMap.get('CH0105');
+const hp180 = codeMap.get('CH0211');
+if (!Number.isFinite(auto) || !Number.isFinite(hp180)) return;
 
-const addon140 = auto140 - manual;
-const addon180 = auto180 - manual;
+const addon140 = auto;
+const addon180 = auto + hp180;
 
 row1.querySelectorAll('.conf-card').forEach(brandCard => {
 brandCard.querySelectorAll('.conf-sub-card').forEach(sub => {
 const t = up(sub.textContent || '');
-if (t.includes('180')) setAddon(sub, addon180);
-else if (t.includes('AUTOMATIC')) setAddon(sub, addon140);
+if (t.includes('180')) {
+  setAddon(sub, addon180);
+  sub.setAttribute('data-option-code', 'CH0211');
+} else if (t.includes('AUTOMATIC')) {
+  setAddon(sub, addon140);
+  sub.setAttribute('data-option-code', 'CH0105');
+}
 });
 });
 }
@@ -423,7 +427,7 @@ currentCountryColKey = colKey;
 
 applyStep1BasePrices(colObj.colIndex);
 const m = getSelectedModelNumberOrFallback();
-applyStep2AddonsForModel(m, colObj.colIndex);
+applyStep2AddonsForModel(m, colObj.map);
 applyCodePricesForRows2Plus(colObj.map);
 
 syncSelectedPricesFromDOM();
@@ -701,7 +705,7 @@ syncAutoTransportFee();
 const colObj = sheet.byCol.get(currentCountryColKey);
 if (colObj) {
 const m = modelFromCard(card) || getSelectedModelNumberOrFallback();
-applyStep2AddonsForModel(m, colObj.colIndex);
+applyStep2AddonsForModel(m, colObj.map);
 syncSelectedPricesFromDOM();
 }
 }
@@ -841,8 +845,6 @@ engine = t.includes('180') ? '180HP' : '140HP';
 return { trans, engine };
 }
 
-function detectLengthKeyFromModel(modelNum) { return Number(modelNum) === 540 ? 'L2' : 'L3L4'; }
-
 function getBaseMoCode(modelNum, brandKey, trans, engine) {
 if (!sheet.loaded) return null;
 const M = Number(modelNum);
@@ -880,6 +882,8 @@ if (['CH0774','CH0779','CH0783'].includes(c)) return 'TECH';
 if (['CH0776','CH0777','CH0780','CH0781','CH0784','CH0785'].includes(c)) return 'STYLE';
 return null;
 }
+
+function detectLengthKeyFromModel(modelNum) { return Number(modelNum) === 540 ? 'L2' : 'L3L4'; }
 
 function remapChassisCode(uiCode, brandKey, modelNum) {
 const type = chassisTypeFromCode(uiCode);
@@ -981,7 +985,7 @@ const modelNum = getSelectedModelNumberOrFallback();
 const brandKey = detectBrandKeyFromUI();
 const { trans, engine } = detectTransEngineFromUI();
 
-const baseMoCode = getBaseMoCode(modelNum, brandKey, trans, engine);
+const baseMoCode = getBaseMoCode(modelNum, brandKey, 'MANUAL', '140HP');
 
 const items = collectSelectedItemsCodes();
 
