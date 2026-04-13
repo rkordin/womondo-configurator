@@ -290,15 +290,25 @@ if (subCard.querySelector('.option-price')) subCard.querySelector('.option-price
 if (subCard.querySelector('.sub-option-price')) subCard.querySelector('.sub-option-price').textContent = txt;
 }
 
-function applyStep1BasePrices(colIndex) {
+const MODEL_TO_LENG = { 540: 'LENG0L2', 600: 'LENG0L3', 636: 'LENG0L4' };
+
+function applyStep1BasePrices(codeMap) {
 const row0 = getAllRows()[0];
-if (!row0) return;
+if (!row0 || !codeMap) return;
 
 row0.querySelectorAll('.conf-card').forEach(card => {
-const m = modelFromCard(card);
-if (!m) return;
-const manual = getConfigPrice(m, 'MANUAL', '140HP', colIndex);
-if (Number.isFinite(manual)) setModelBase(card, manual);
+const priceEl = card.querySelector('.conf-price');
+let code = extractCode(priceEl?.getAttribute('data-price-code'))
+  || extractCode(priceEl?.textContent || '');
+
+if (!code) {
+  const m = modelFromCard(card);
+  code = m ? MODEL_TO_LENG[Number(m)] : null;
+}
+
+if (!code) return;
+const gross = codeMap.get(code);
+if (Number.isFinite(gross)) setModelBase(card, gross);
 });
 }
 
@@ -424,7 +434,7 @@ if (!colObj) return;
 currentCountry = countryUpper;
 currentCountryColKey = colKey;
 
-applyStep1BasePrices(colObj.colIndex);
+applyStep1BasePrices(colObj.map);
 const m = getSelectedModelNumberOrFallback();
 applyStep2AddonsForModel(m, colObj.map);
 applyCodePricesForRows2Plus(colObj.map);
