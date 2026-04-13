@@ -306,12 +306,11 @@ function applyStep2AddonsForModel(modelNum, codeMap) {
 const row1 = getAllRows()[1];
 if (!row1 || !codeMap) return;
 
-const auto = codeMap.get('CH0105');
-const hp180 = codeMap.get('CH0211');
-if (!Number.isFinite(auto) || !Number.isFinite(hp180)) return;
-
-const addon140 = auto;
-const addon180 = hp180;
+const autoRaw = codeMap.get('CH0105');
+const hp180Raw = codeMap.get('CH0211');
+const addon140 = Number.isFinite(autoRaw) ? autoRaw : 0;
+const addon180 = Number.isFinite(hp180Raw) ? hp180Raw : 0;
+log('Step2 addons', { CH0105: addon140, CH0211: addon180 });
 
 row1.querySelectorAll('.conf-card').forEach(brandCard => {
 brandCard.querySelectorAll('.conf-sub-card').forEach(sub => {
