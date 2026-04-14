@@ -21,20 +21,21 @@ const COUNTRY_MAP = {
   'Croatia': 'HR', 'Czech Republic': 'CZ', 'Denmark': 'DK', 'Estonia': 'EE',
   'Finland': 'FI', 'France': 'FR', 'Greece': 'GR', 'Hungary': 'HU',
   'Italy': 'IT', 'Netherlands': 'NL', 'Poland': 'PL', 'Portugal': 'PT',
-  'Romania': 'RO', 'Slovenia': 'SI', 'Spain': 'ES', 'Sweden': 'SE'
+  'Romania': 'RO', 'Slovenia': 'SI', 'Spain': 'ES', 'Sweden': 'SE',
+  'Switzerland': 'CH'
 };
 const COUNTRY_LIST = Object.keys(COUNTRY_MAP);
 
-// EU countries for form dropdown (full list)
+// Countries for form dropdown (EU + Switzerland)
 const EU_COUNTRIES = [
   'Austria','Belgium','Bulgaria','Croatia','Cyprus','Czech Republic',
   'Denmark','Estonia','Finland','France','Germany','Greece','Hungary',
   'Ireland','Italy','Latvia','Lithuania','Luxembourg','Malta',
   'Netherlands','Poland','Portugal','Romania','Slovakia','Slovenia',
-  'Spain','Sweden'
+  'Spain','Sweden','Switzerland'
 ];
 
-// Phone dial codes per EU country
+// Phone dial codes per country
 const DIAL = {
   'AUSTRIA':'+43','BELGIUM':'+32','BULGARIA':'+359','CROATIA':'+385',
   'CYPRUS':'+357','CZECH REPUBLIC':'+420','DENMARK':'+45','ESTONIA':'+372',
@@ -42,7 +43,7 @@ const DIAL = {
   'HUNGARY':'+36','IRELAND':'+353','ITALY':'+39','LATVIA':'+371',
   'LITHUANIA':'+370','LUXEMBOURG':'+352','MALTA':'+356','NETHERLANDS':'+31',
   'POLAND':'+48','PORTUGAL':'+351','ROMANIA':'+40','SLOVAKIA':'+421',
-  'SLOVENIA':'+386','SPAIN':'+34','SWEDEN':'+46'
+  'SLOVENIA':'+386','SPAIN':'+34','SWEDEN':'+46','SWITZERLAND':'+41'
 };
 
 // Postal code validation patterns per country
@@ -59,7 +60,8 @@ const POSTAL_PATTERNS = {
   'Ireland': /^[A-Za-z]\d[\dWw]\s?[A-Za-z\d]{4}$/i,
   'Luxembourg': /^\d{4}$/, 'Malta': /^[A-Z]{3}\s?\d{2,4}$/i,
   'Cyprus': /^\d{4}$/, 'Lithuania': /^LT-?\d{5}$/i,
-  'Latvia': /^LV-?\d{4}$/i, 'Estonia': /^\d{5}$/
+  'Latvia': /^LV-?\d{4}$/i, 'Estonia': /^\d{5}$/,
+  'Switzerland': /^\d{4}$/
 };
 
 // MO_CODE → item id mapping (used to look up CSV row)
